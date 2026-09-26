@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 
 TRANSFER_DUTY_RATE = 0.04
+MIN_DOWN_PAYMENT_RATE = 0.10
 
 
 @dataclass
@@ -20,7 +21,6 @@ class BuyingParameters:
     mortgage_interest_rate: float
     amortization_and_repairs_rate: float
     appreciation_rate: float
-    stock_return: float
 
     def __post_init__(self) -> None:
         if self.purchase_price < 0:
@@ -29,6 +29,8 @@ class BuyingParameters:
             raise ValueError("down_payment must be non-negative")
         if self.down_payment > self.purchase_price:
             raise ValueError("down_payment cannot exceed purchase_price")
+        if self.down_payment < MIN_DOWN_PAYMENT_RATE * self.purchase_price:
+            raise ValueError("down_payment must be at least 10% of purchase_price")
         if self.mortgage_length_years < 0:
             raise ValueError("mortgage_length_years must be non-negative")
 
@@ -50,7 +52,6 @@ class RentingParameters:
     deposit: float
     current_rent: float
     yearly_rent_increase: float
-    stock_return: float
 
     def __post_init__(self) -> None:
         if self.deposit < 0:
@@ -63,3 +64,4 @@ class RentingParameters:
 class Scenario:
     buying: BuyingParameters
     renting: RentingParameters
+    stock_return: float

@@ -6,7 +6,13 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from model import WealthModel
-from parameters import BuyingParameters, RentingParameters, Scenario, TRANSFER_DUTY_RATE
+from parameters import (
+    MIN_DOWN_PAYMENT_RATE,
+    BuyingParameters,
+    RentingParameters,
+    Scenario,
+    TRANSFER_DUTY_RATE,
+)
 
 
 def _huf(value: float) -> str:
@@ -20,19 +26,29 @@ st.caption("Wealth from origination through the last mortgage payment.")
 with st.sidebar:
     st.header("Buying")
     purchase_price = st.number_input("Purchase price (HUF)", min_value=0.0, value=80_000_000.0, step=1_000_000.0, format="%.0f")
-    down_payment = st.number_input("Down payment (HUF)", min_value=0.0, value=16_000_000.0, step=500_000.0, format="%.0f")
+    min_down_payment = MIN_DOWN_PAYMENT_RATE * purchase_price
+    down_payment = st.number_input(
+        "Down payment (HUF)",
+        min_value=float(min_down_payment),
+        max_value=float(purchase_price),
+        value=max(16_000_000.0, min_down_payment),
+        step=500_000.0,
+        format="%.0f",
+    )
+    st.caption(f"Minimum {MIN_DOWN_PAYMENT_RATE:.0%} of purchase price ({_huf(min_down_payment)}).")
     mortgage_years = st.number_input("Mortgage length (years)", min_value=0, value=20, step=1)
     mortgage_rate_pct = st.number_input("Fixed mortgage interest rate (% / year)", min_value=0.0, value=6.5, step=0.1, format="%.2f")
     amort_pct = st.number_input("Amortization + repairs (% of home value / year)", min_value=0.0, value=1.0, step=0.1, format="%.2f")
     appreciation_pct = st.number_input("House value appreciation (% / year)", min_value=-20.0, value=3.0, step=0.1, format="%.2f")
-    buy_stock_pct = st.number_input("Stock return on leftover cash, buying (% / year)", min_value=-50.0, value=7.0, step=0.1, format="%.2f", key="buy_stock")
     st.caption(f"Transfer duty is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price ({_huf(purchase_price * TRANSFER_DUTY_RATE)}).")
 
     st.header("Renting")
     deposit = st.number_input("Deposit (HUF)", min_value=0.0, value=1_200_000.0, step=100_000.0, format="%.0f")
     current_rent = st.number_input("Current monthly rent (HUF)", min_value=0.0, value=350_000.0, step=10_000.0, format="%.0f")
     rent_increase_pct = st.number_input("Yearly rent increase (% / year)", min_value=-20.0, value=5.0, step=0.1, format="%.2f")
-    rent_stock_pct = st.number_input("Stock return on leftover cash, renting (% / year)", min_value=-50.0, value=7.0, step=0.1, format="%.2f", key="rent_stock")
+
+    st.header("Leftover cash")
+    stock_pct = st.number_input("Stock return on leftover cash (% / year)", min_value=-50.0, value=7.0, step=0.1, format="%.2f")
 
 try:
     scenario = Scenario(
@@ -43,14 +59,13 @@ try:
             mortgage_interest_rate=mortgage_rate_pct / 100,
             amortization_and_repairs_rate=amort_pct / 100,
             appreciation_rate=appreciation_pct / 100,
-            stock_return=buy_stock_pct / 100,
         ),
         renting=RentingParameters(
             deposit=deposit,
             current_rent=current_rent,
             yearly_rent_increase=rent_increase_pct / 100,
-            stock_return=rent_stock_pct / 100,
         ),
+        stock_return=stock_pct / 100,
     )
     model = WealthModel(scenario)
 except ValueError as exc:

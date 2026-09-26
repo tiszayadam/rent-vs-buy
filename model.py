@@ -50,8 +50,7 @@ class WealthModel:
         buying = self.scenario.buying
         renting = self.scenario.renting
         mortgage_payment = self.mortgage.monthly_payment()
-        buy_stock_m = _monthly_rate(buying.stock_return)
-        rent_stock_m = _monthly_rate(renting.stock_return)
+        stock_m = _monthly_rate(self.scenario.stock_return)
         net_house_annual = buying.appreciation_rate - buying.amortization_and_repairs_rate
 
         buy_stock = 0.0
@@ -60,8 +59,8 @@ class WealthModel:
 
         for month in range(self.horizon_months + 1):
             if month > 0:
-                buy_stock *= 1 + buy_stock_m
-                rent_stock *= 1 + rent_stock_m
+                buy_stock *= 1 + stock_m
+                rent_stock *= 1 + stock_m
 
             if month == 0:
                 buy_cf = buying.down_payment + buying.transfer_duty
