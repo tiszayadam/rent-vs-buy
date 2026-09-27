@@ -14,45 +14,45 @@ from parameters import (
     TRANSFER_DUTY_RATE,
 )
 
-MILLION = 1_000_000
-THOUSAND = 1_000
 
-
-def _huf_display(value: float) -> str:
-    if abs(value) >= MILLION:
-        return f"{value / MILLION:.2f} million HUF"
-    if abs(value) >= THOUSAND:
-        return f"{value / THOUSAND:.1f} thousand HUF"
-    return f"{value:.0f} HUF"
+def format_grouped(value: float) -> str:
+    negative = value < 0
+    magnitude = abs(value)
+    if abs(magnitude - round(magnitude)) < 1e-9:
+        body = f"{int(round(magnitude)):,}".replace(",", " ")
+    else:
+        int_part, frac_part = f"{magnitude:.2f}".split(".")
+        body = f"{int(int_part):,}".replace(",", " ") + "." + frac_part
+    return f"-{body}" if negative else body
 
 
 st.set_page_config(page_title="Rent vs buy", layout="wide")
 st.title("Rent vs buy")
 st.caption("Wealth from origination through the last mortgage payment.")
 
-with st.sidebar:
+buy_col, rent_col, inv_col = st.columns(3)
+
+with buy_col:
     st.header("Buying")
-    purchase_million = st.number_input(
-        "Purchase price (million HUF)",
+    purchase_price = st.number_input(
+        "Purchase price (HUF)",
         min_value=0.0,
-        value=70.0,
-        step=1.0,
-        format="%.2f",
+        value=70_000_000.0,
+        step=1_000_000.0,
+        format="%.0f",
     )
-    purchase_price = purchase_million * MILLION
-    min_down_million = MIN_DOWN_PAYMENT_RATE * purchase_million
-    down_million = st.number_input(
-        "Down payment (million HUF)",
-        min_value=float(min_down_million),
-        max_value=float(purchase_million) if purchase_million > 0 else 0.0,
-        value=max(15.0, min_down_million),
-        step=1.0,
-        format="%.2f",
+    min_down = MIN_DOWN_PAYMENT_RATE * purchase_price
+    down_payment = st.number_input(
+        "Down payment (HUF)",
+        min_value=float(min_down),
+        max_value=float(purchase_price) if purchase_price > 0 else 0.0,
+        value=max(15_000_000.0, min_down),
+        step=1_000_000.0,
+        format="%.0f",
     )
-    down_payment = down_million * MILLION
     st.caption(
         f"Minimum {MIN_DOWN_PAYMENT_RATE:.0%} of purchase price "
-        f"({min_down_million:.2f} million HUF)."
+        f"({format_grouped(min_down)} HUF)."
     )
     mortgage_years = st.number_input("Mortgage length (years)", min_value=0, value=25, step=1)
     mortgage_rate_pct = st.number_input(
@@ -78,26 +78,25 @@ with st.sidebar:
     )
     st.caption(
         f"Transfer duty is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
-        f"({purchase_million * TRANSFER_DUTY_RATE:.2f} million HUF)."
+        f"({format_grouped(purchase_price * TRANSFER_DUTY_RATE)} HUF)."
     )
 
+with rent_col:
     st.header("Renting")
-    deposit_thousand = st.number_input(
-        "Deposit (thousand HUF)",
+    deposit = st.number_input(
+        "Deposit (HUF)",
         min_value=0.0,
-        value=500.0,
-        step=10.0,
-        format="%.2f",
+        value=500_000.0,
+        step=10_000.0,
+        format="%.0f",
     )
-    deposit = deposit_thousand * THOUSAND
-    rent_thousand = st.number_input(
-        "Current monthly rent (thousand HUF)",
+    current_rent = st.number_input(
+        "Current monthly rent (HUF)",
         min_value=0.0,
-        value=250.0,
-        step=10.0,
-        format="%.2f",
+        value=250_000.0,
+        step=10_000.0,
+        format="%.0f",
     )
-    current_rent = rent_thousand * THOUSAND
     rent_increase_pct = st.number_input(
         "Yearly rent increase (% / year)",
         min_value=-20.0,
@@ -106,6 +105,7 @@ with st.sidebar:
         format="%.1f",
     )
 
+with inv_col:
     st.header("Investment")
     investment_pct = st.number_input(
         "Investment return on leftover cash (% / year, HUF)",
@@ -146,7 +146,7 @@ fig = go.Figure()
 fig.add_trace(
     go.Scatter(
         x=years,
-        y=[p.buying_wealth / MILLION for p in points],
+        y=[p.buying_wealth for p in points],
         name="Buying",
         mode="lines",
     )
@@ -154,22 +154,24 @@ fig.add_trace(
 fig.add_trace(
     go.Scatter(
         x=years,
-        y=[p.renting_wealth / MILLION for p in points],
+        y=[p.renting_wealth for p in points],
         name="Renting",
         mode="lines",
     )
 )
 fig.update_layout(
     xaxis_title="Years",
-    yaxis_title="Wealth (million HUF)",
+    yaxis_title="Wealth (HUF)",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     margin=dict(t=40, b=40),
     hovermode="x unified",
     height=520,
+    separators=". ",
+    yaxis=dict(tickformat=",.0f"),
 )
 st.plotly_chart(fig, width="stretch")
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Buying wealth at end", _huf_display(end.buying_wealth))
-m2.metric("Renting wealth at end", _huf_display(end.renting_wealth))
-m3.metric("Monthly mortgage instalment", _huf_display(model.mortgage.monthly_payment()))
+m1.metric("Buying wealth at end", f"{format_grouped(end.buying_wealth)} HUF")
+m2.metric("Renting wealth at end", f"{format_grouped(end.renting_wealth)} HUF")
+m3.metric("Monthly mortgage instalment", f"{format_grouped(model.mortgage.monthly_payment())} HUF")
