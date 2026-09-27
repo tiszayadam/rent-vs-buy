@@ -42,7 +42,7 @@ Derived: `loan_amount = purchase_price - down_payment`, `transfer_duty = purchas
 
 **Fixed constants** in `parameters.py`:
 
-- `TRANSFER_DUTY_RATE = 0.04` (not user-editable)
+- `TRANSFER_DUTY_RATE = 0.04` (not user-editable). In the UI this is labelled as Hungarian *vagyonszerzési illeték*.
 - `MIN_DOWN_PAYMENT_RATE = 0.10`
 
 ## Model rules (do not drift)

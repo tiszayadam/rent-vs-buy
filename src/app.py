@@ -44,7 +44,7 @@ The two paths are assumed to face the same choice of housing spend at each stage
 
 **Buying cashflows**
 
-- **Upfront:** down payment plus transfer duty. Transfer duty is a fixed 4% of purchase price. Down payment must be at least 10% of purchase price.
+- **Upfront:** down payment plus transfer duty (*vagyonszerzési illeték*). Transfer duty is a fixed 4% of purchase price. Down payment must be at least 10% of purchase price.
 - **Loan:** purchase price minus down payment.
 - **Each month:** a constant instalment on a fully amortizing mortgage (equal monthly payments, fixed annual rate, monthly rate = annual rate / 12). The instalment covers principal and interest, not interest only.
 
@@ -132,7 +132,7 @@ with buy_col:
         format="%.1f",
     )
     st.caption(
-        f"Transfer duty is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
+        f"Transfer duty (vagyonszerzési illeték) is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
         f"({format_grouped(purchase_price * TRANSFER_DUTY_RATE)} HUF)."
     )
 
