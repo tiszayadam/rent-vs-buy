@@ -26,7 +26,7 @@ class WealthPoint:
 
 
 class WealthModel:
-    """Wealth for both paths from origination (month 0) through the final mortgage payment."""
+    """Wealth for both paths from origination (month 0) through the last mortgage payment."""
 
     def __init__(self, scenario: Scenario) -> None:
         self.scenario = scenario

@@ -7,9 +7,16 @@ if [[ -x .venv/Scripts/python.exe ]]; then
 elif [[ -x .venv/bin/python ]]; then
   PY=".venv/bin/python"
 else
-  echo "No virtualenv found. Create one and install requirements first:" >&2
-  echo "  python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.txt" >&2
-  exit 1
+  echo "Creating virtual environment and installing packages..."
+  python -m venv .venv
+  if [[ -x .venv/Scripts/python.exe ]]; then
+    PY=".venv/Scripts/python.exe"
+  else
+    PY=".venv/bin/python"
+  fi
+  "$PY" -m pip install -r requirements.txt
 fi
 
-exec "$PY" -m streamlit run app.py
+echo "When Streamlit prints a Local URL, open it in your browser."
+echo "Usually: http://localhost:8501"
+exec "$PY" -m streamlit run src/app.py
