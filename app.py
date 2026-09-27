@@ -47,8 +47,8 @@ with st.sidebar:
     current_rent = st.number_input("Current monthly rent (HUF)", min_value=0.0, value=350_000.0, step=10_000.0, format="%.0f")
     rent_increase_pct = st.number_input("Yearly rent increase (% / year)", min_value=-20.0, value=5.0, step=0.1, format="%.2f")
 
-    st.header("Leftover cash")
-    stock_pct = st.number_input("Stock return on leftover cash (% / year)", min_value=-50.0, value=7.0, step=0.1, format="%.2f")
+    st.header("Investment")
+    investment_pct = st.number_input("Investment return on leftover cash (% / year)", min_value=-50.0, value=7.0, step=0.1, format="%.2f")
 
 try:
     scenario = Scenario(
@@ -65,7 +65,7 @@ try:
             current_rent=current_rent,
             yearly_rent_increase=rent_increase_pct / 100,
         ),
-        stock_return=stock_pct / 100,
+        investment_return=investment_pct / 100,
     )
     model = WealthModel(scenario)
 except ValueError as exc:

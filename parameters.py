@@ -64,4 +64,4 @@ class RentingParameters:
 class Scenario:
     buying: BuyingParameters
     renting: RentingParameters
-    stock_return: float
+    investment_return: float

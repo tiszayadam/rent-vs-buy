@@ -17,8 +17,8 @@ class WealthPoint:
     month: int
     buying_cashflow: float
     renting_cashflow: float
-    buying_stock: float
-    renting_stock: float
+    buying_investment: float
+    renting_investment: float
     house_value: float
     remaining_principal: float
     buying_wealth: float
@@ -50,17 +50,17 @@ class WealthModel:
         buying = self.scenario.buying
         renting = self.scenario.renting
         mortgage_payment = self.mortgage.monthly_payment()
-        stock_m = _monthly_rate(self.scenario.stock_return)
+        investment_m = _monthly_rate(self.scenario.investment_return)
         net_house_annual = buying.appreciation_rate - buying.amortization_and_repairs_rate
 
-        buy_stock = 0.0
-        rent_stock = 0.0
+        buy_investment = 0.0
+        rent_investment = 0.0
         points: list[WealthPoint] = []
 
         for month in range(self.horizon_months + 1):
             if month > 0:
-                buy_stock *= 1 + stock_m
-                rent_stock *= 1 + stock_m
+                buy_investment *= 1 + investment_m
+                rent_investment *= 1 + investment_m
 
             if month == 0:
                 buy_cf = buying.down_payment + buying.transfer_duty
@@ -72,22 +72,22 @@ class WealthModel:
 
             leftover = buy_cf - rent_cf
             if leftover > 0:
-                rent_stock += leftover
+                rent_investment += leftover
             elif leftover < 0:
-                buy_stock += -leftover
+                buy_investment += -leftover
 
             house_value = buying.purchase_price * (1 + net_house_annual) ** (month / 12)
             remaining = self.mortgage.remaining_principal(month)
-            buying_wealth = buy_stock + house_value - remaining
-            renting_wealth = renting.deposit + rent_stock
+            buying_wealth = buy_investment + house_value - remaining
+            renting_wealth = renting.deposit + rent_investment
 
             points.append(
                 WealthPoint(
                     month=month,
                     buying_cashflow=buy_cf,
                     renting_cashflow=rent_cf,
-                    buying_stock=buy_stock,
-                    renting_stock=rent_stock,
+                    buying_investment=buy_investment,
+                    renting_investment=rent_investment,
                     house_value=house_value,
                     remaining_principal=remaining,
                     buying_wealth=buying_wealth,
