@@ -12,21 +12,22 @@ Do not change the wealth equations unless the user asks. Keep transfer duty and 
 
 User-facing (keep at repo root):
 
-- `README.md` — how to run + model description
-- `start.bat` — Windows launcher (creates `.venv` on first run, starts Streamlit)
+- `README.md` — how to run
+- `start.bat` — Windows launcher (creates `.venv` on first run, starts Streamlit; puts Git on PATH so the Deploy button can see GitHub)
 - `start.sh` — same for Git Bash / Unix
+- `streamlit_app.py` — root entrypoint for Streamlit Community Cloud / in-app Deploy (loads `src/app.py`)
 - `requirements.txt`
 
-Implementation (do not scatter new Python at the repo root):
+Implementation (do not scatter new Python at the repo root except `streamlit_app.py`):
 
 - `src/app.py` — Streamlit UI
 - `src/parameters.py` — dataclasses and constants
 - `src/mortgage.py` — fully amortizing fixed-rate mortgage
 - `src/model.py` — `WealthModel` / `WealthPoint`
 
-Run with: `.venv\Scripts\python.exe -m streamlit run src\app.py`
+Run with: `.venv\Scripts\python.exe -m streamlit run streamlit_app.py`
 
-GitHub: `https://github.com/tiszayadam/rent-vs-buy` (private). Working branch has been `cursor/static-wealth-model`.
+GitHub: `https://github.com/tiszayadam/rent-vs-buy` (public). Prefer branch `main` for Community Cloud. `cursor/static-wealth-model` was the original working branch.
 
 ## Parameters
 

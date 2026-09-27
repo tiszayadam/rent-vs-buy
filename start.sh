@@ -19,4 +19,4 @@ fi
 
 echo "When Streamlit prints a Local URL, open it in your browser."
 echo "Usually: http://localhost:8501"
-exec "$PY" -m streamlit run src/app.py
+exec "$PY" -m streamlit run streamlit_app.py
