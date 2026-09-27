@@ -14,9 +14,16 @@ from parameters import (
     TRANSFER_DUTY_RATE,
 )
 
+MILLION = 1_000_000
+THOUSAND = 1_000
 
-def _huf(value: float) -> str:
-    return f"{value:,.0f} Ft".replace(",", " ")
+
+def _huf_display(value: float) -> str:
+    if abs(value) >= MILLION:
+        return f"{value / MILLION:.2f} million HUF"
+    if abs(value) >= THOUSAND:
+        return f"{value / THOUSAND:.1f} thousand HUF"
+    return f"{value:.0f} HUF"
 
 
 st.set_page_config(page_title="Rent vs buy", layout="wide")
@@ -25,30 +32,89 @@ st.caption("Wealth from origination through the last mortgage payment.")
 
 with st.sidebar:
     st.header("Buying")
-    purchase_price = st.number_input("Purchase price (HUF)", min_value=0.0, value=80_000_000.0, step=1_000_000.0, format="%.0f")
-    min_down_payment = MIN_DOWN_PAYMENT_RATE * purchase_price
-    down_payment = st.number_input(
-        "Down payment (HUF)",
-        min_value=float(min_down_payment),
-        max_value=float(purchase_price),
-        value=max(16_000_000.0, min_down_payment),
-        step=500_000.0,
-        format="%.0f",
+    purchase_million = st.number_input(
+        "Purchase price (million HUF)",
+        min_value=0.0,
+        value=70.0,
+        step=1.0,
+        format="%.2f",
     )
-    st.caption(f"Minimum {MIN_DOWN_PAYMENT_RATE:.0%} of purchase price ({_huf(min_down_payment)}).")
-    mortgage_years = st.number_input("Mortgage length (years)", min_value=0, value=20, step=1)
-    mortgage_rate_pct = st.number_input("Fixed mortgage interest rate (% / year)", min_value=0.0, value=6.5, step=0.1, format="%.2f")
-    amort_pct = st.number_input("Amortization + repairs (% of home value / year)", min_value=0.0, value=1.0, step=0.1, format="%.2f")
-    appreciation_pct = st.number_input("House value appreciation (% / year)", min_value=-20.0, value=3.0, step=0.1, format="%.2f")
-    st.caption(f"Transfer duty is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price ({_huf(purchase_price * TRANSFER_DUTY_RATE)}).")
+    purchase_price = purchase_million * MILLION
+    min_down_million = MIN_DOWN_PAYMENT_RATE * purchase_million
+    down_million = st.number_input(
+        "Down payment (million HUF)",
+        min_value=float(min_down_million),
+        max_value=float(purchase_million) if purchase_million > 0 else 0.0,
+        value=max(15.0, min_down_million),
+        step=1.0,
+        format="%.2f",
+    )
+    down_payment = down_million * MILLION
+    st.caption(
+        f"Minimum {MIN_DOWN_PAYMENT_RATE:.0%} of purchase price "
+        f"({min_down_million:.2f} million HUF)."
+    )
+    mortgage_years = st.number_input("Mortgage length (years)", min_value=0, value=25, step=1)
+    mortgage_rate_pct = st.number_input(
+        "Fixed mortgage interest rate (% / year)",
+        min_value=0.0,
+        value=3.0,
+        step=0.1,
+        format="%.1f",
+    )
+    amort_pct = st.number_input(
+        "Amortization + repairs (% of home value / year)",
+        min_value=0.0,
+        value=1.0,
+        step=0.1,
+        format="%.1f",
+    )
+    appreciation_pct = st.number_input(
+        "House value appreciation (% / year)",
+        min_value=-20.0,
+        value=3.0,
+        step=0.1,
+        format="%.1f",
+    )
+    st.caption(
+        f"Transfer duty is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
+        f"({purchase_million * TRANSFER_DUTY_RATE:.2f} million HUF)."
+    )
 
     st.header("Renting")
-    deposit = st.number_input("Deposit (HUF)", min_value=0.0, value=1_200_000.0, step=100_000.0, format="%.0f")
-    current_rent = st.number_input("Current monthly rent (HUF)", min_value=0.0, value=350_000.0, step=10_000.0, format="%.0f")
-    rent_increase_pct = st.number_input("Yearly rent increase (% / year)", min_value=-20.0, value=5.0, step=0.1, format="%.2f")
+    deposit_thousand = st.number_input(
+        "Deposit (thousand HUF)",
+        min_value=0.0,
+        value=500.0,
+        step=10.0,
+        format="%.2f",
+    )
+    deposit = deposit_thousand * THOUSAND
+    rent_thousand = st.number_input(
+        "Current monthly rent (thousand HUF)",
+        min_value=0.0,
+        value=250.0,
+        step=10.0,
+        format="%.2f",
+    )
+    current_rent = rent_thousand * THOUSAND
+    rent_increase_pct = st.number_input(
+        "Yearly rent increase (% / year)",
+        min_value=-20.0,
+        value=3.0,
+        step=0.1,
+        format="%.1f",
+    )
 
     st.header("Investment")
-    investment_pct = st.number_input("Investment return on leftover cash (% / year)", min_value=-50.0, value=7.0, step=0.1, format="%.2f")
+    investment_pct = st.number_input(
+        "Investment return on leftover cash (% / year, HUF)",
+        min_value=-50.0,
+        value=8.0,
+        step=0.1,
+        format="%.1f",
+    )
+    st.caption("Return is in HUF.")
 
 try:
     scenario = Scenario(
@@ -78,14 +144,24 @@ years = [p.month / 12 for p in points]
 
 fig = go.Figure()
 fig.add_trace(
-    go.Scatter(x=years, y=[p.buying_wealth for p in points], name="Buying", mode="lines")
+    go.Scatter(
+        x=years,
+        y=[p.buying_wealth / MILLION for p in points],
+        name="Buying",
+        mode="lines",
+    )
 )
 fig.add_trace(
-    go.Scatter(x=years, y=[p.renting_wealth for p in points], name="Renting", mode="lines")
+    go.Scatter(
+        x=years,
+        y=[p.renting_wealth / MILLION for p in points],
+        name="Renting",
+        mode="lines",
+    )
 )
 fig.update_layout(
     xaxis_title="Years",
-    yaxis_title="Wealth (HUF)",
+    yaxis_title="Wealth (million HUF)",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     margin=dict(t=40, b=40),
     hovermode="x unified",
@@ -94,6 +170,6 @@ fig.update_layout(
 st.plotly_chart(fig, width="stretch")
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Buying wealth at end", _huf(end.buying_wealth))
-m2.metric("Renting wealth at end", _huf(end.renting_wealth))
-m3.metric("Monthly mortgage instalment", _huf(model.mortgage.monthly_payment()))
+m1.metric("Buying wealth at end", _huf_display(end.buying_wealth))
+m2.metric("Renting wealth at end", _huf_display(end.renting_wealth))
+m3.metric("Monthly mortgage instalment", _huf_display(model.mortgage.monthly_payment()))
