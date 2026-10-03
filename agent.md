@@ -67,7 +67,7 @@ API: `WealthModel(scenario).at(month)` or `.timeline()`.
 ## UI conventions
 
 - Mode radio at the top of **Wealth comparison**: Rent vs buy / Buy-to-let vs invest.
-- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/` and are not wired into the wealth model yet. Streamlit cannot drag Plotly points; click a year then use the slider.
+- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/` and are not wired into the wealth model yet. Streamlit cannot drag Plotly points; click a year then use the slider. Rent and house plots show real (editable) and nominal (`real * cumulative inflation deflator / 100`, deflator 100 in 2027).
 - Parameters live on the **main page** (three columns: Buying, Renting or Letting, Investment), not a sidebar.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.
