@@ -1,7 +1,7 @@
-"""User-specified parameters for the rent vs buy comparison.
+"""User-specified parameters for the wealth comparisons.
 
 Rates are annual decimals (0.04 means 4%). Monetary amounts are HUF.
-current_rent is the monthly rent.
+current_rent and initial_rent are monthly.
 """
 
 from __future__ import annotations
@@ -11,6 +11,9 @@ from dataclasses import dataclass
 
 TRANSFER_DUTY_RATE = 0.04
 MIN_DOWN_PAYMENT_RATE = 0.10
+
+MODE_RENT_VS_BUY = "rent_vs_buy"
+MODE_LET_VS_INVEST = "let_vs_invest"
 
 
 @dataclass
@@ -61,7 +64,26 @@ class RentingParameters:
 
 
 @dataclass
+class LettingParameters:
+    initial_rent: float
+    yearly_rent_increase: float
+
+    def __post_init__(self) -> None:
+        if self.initial_rent < 0:
+            raise ValueError("initial_rent must be non-negative")
+
+
+@dataclass
 class Scenario:
     buying: BuyingParameters
-    renting: RentingParameters
     investment_return: float
+    renting: RentingParameters | None = None
+    letting: LettingParameters | None = None
+
+    def __post_init__(self) -> None:
+        if (self.renting is None) == (self.letting is None):
+            raise ValueError("exactly one of renting or letting is required")
+
+    @property
+    def mode(self) -> str:
+        return MODE_LET_VS_INVEST if self.letting is not None else MODE_RENT_VS_BUY

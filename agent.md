@@ -4,7 +4,7 @@ This file is for future coding agents. Follow the user's methodology; do not inv
 
 ## What this project is
 
-A Streamlit tool that compares **buying** vs **renting** a home in **HUF**. Horizon is origination (month 0) through the last mortgage payment. The model is static and month-by-month.
+A Streamlit tool in **HUF** with two modes: **buying vs renting** a home to live in, and **buy-to-let vs a cash investment account**. Horizon is origination (month 0) through the last mortgage payment. The model is static and month-by-month.
 
 Do not change the wealth equations unless the user asks. Keep transfer duty and the 10% down-payment floor as fixed rules unless they change them.
 
@@ -37,9 +37,11 @@ Rates in code are **annual decimals** (`0.03` = 3%). The UI shows percents and d
 
 Derived: `loan_amount = purchase_price - down_payment`, `transfer_duty = purchase_price * TRANSFER_DUTY_RATE`.
 
-**Renting** (`RentingParameters`): `deposit`, `current_rent` (monthly HUF), `yearly_rent_increase`.
+**Renting** (`RentingParameters`, rent-vs-buy only): `deposit`, `current_rent` (monthly HUF), `yearly_rent_increase`.
 
-**Shared:** `Scenario.investment_return` — one leftover-cash return for both paths, HUF-denominated.
+**Letting** (`LettingParameters`, let-vs-invest only): `initial_rent` (monthly HUF received), `yearly_rent_increase`. No tenant deposit.
+
+**Shared:** `Scenario.investment_return` — one leftover-cash return for both paths, HUF-denominated. Exactly one of `renting` or `letting` is set.
 
 **Fixed constants** in `parameters.py`:
 
@@ -48,23 +50,27 @@ Derived: `loan_amount = purchase_price - down_payment`, `transfer_duty = purchas
 
 ## Model rules (do not drift)
 
-- Month 0: buyer pays down payment + transfer duty; renter pays deposit. No mortgage payment and no rent yet.
-- Months 1…N: buyer pays the constant fully amortizing instalment (principal + interest, monthly rate = annual / 12). Renter pays `current_rent * (1 + yearly_rent_increase) ** ((month - 1) // 12)`.
-- Leftover: compare outflows each stage; the cheaper path invests the difference. Grow existing investment balances first (`(1 + r)**(1/12) - 1`), then add that month's leftover.
+Positive cashflow = net outflow. Rent received on the let path reduces (or reverses) the landlord’s monthly outflow.
+
+- Month 0: house path pays down payment + transfer duty. Rent-vs-buy: renter pays deposit. Let-vs-invest: the cash account pays nothing. No mortgage payment and no rent yet.
+- Months 1…N: house path pays the constant fully amortizing instalment (principal + interest, monthly rate = annual / 12). Rent-vs-buy: renter pays `current_rent * (1 + yearly_rent_increase) ** ((month - 1) // 12)`. Let-vs-invest: landlord *receives* `initial_rent * (1 + yearly_rent_increase) ** ((month - 1) // 12)`, so net house-path cashflow is instalment minus rent; cash account cashflow is 0.
+- Leftover: compare net outflows each stage; the cheaper path (smaller outflow / larger inflow) invests the difference. Grow existing investment balances first (`(1 + r)**(1/12) - 1`), then add that month's leftover.
 - House value: `purchase_price * (1 + appreciation - amortization_and_repairs) ** (month / 12)`. Amortization/repairs are a value haircut, not a cash cost.
 - Remaining principal after `month` payments; ~0 at the end.
-- Buying wealth = investment + house − remaining principal.
-- Renting wealth = deposit (face value, not invested) + investment.
+- House-path wealth = investment + house − remaining principal.
+- Rent-vs-buy other wealth = deposit (face value, not invested) + investment.
+- Let-vs-invest other wealth = investment only.
 
 API: `WealthModel(scenario).at(month)` or `.timeline()`.
 
 ## UI conventions
 
-- Parameters live on the **main page** (three columns: Buying, Renting, Investment), not a sidebar.
+- Mode radio at the top: Rent vs buy / Buy-to-let vs invest.
+- Parameters live on the **main page** (three columns: Buying, Renting or Letting, Investment), not a sidebar.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.
 - Defaults: purchase 70 000 000, down 15 000 000, mortgage 25 years at 3%, amort/repairs 1%, appreciation 3%, deposit 500 000, rent 250 000, rent increase 3%, investment return 8%.
-- Chart: wealth vs years for Buying and Renting; Plotly `separators=". "` and grouped HUF ticks.
+- Chart: wealth vs years; Plotly `separators=". "` and grouped HUF ticks. Series names follow the mode (Buying/Renting or Buy-to-let/Investment account).
 
 ## What not to do
 

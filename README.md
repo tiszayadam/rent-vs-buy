@@ -1,6 +1,6 @@
 # Rent vs buy
 
-Compare the financial wealth of **buying** a home versus **renting**, month by month, until the mortgage is paid off.
+Compare month-by-month wealth until the mortgage is paid off: **buying vs renting** a home to live in, or **buy-to-let vs an investment account**.
 
 ## How to run
 
