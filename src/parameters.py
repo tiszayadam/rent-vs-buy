@@ -14,6 +14,7 @@ MIN_DOWN_PAYMENT_RATE = 0.10
 
 MODE_RENT_VS_BUY = "rent_vs_buy"
 MODE_LET_VS_INVEST = "let_vs_invest"
+MODE_HOUSE_VS_HOUSE = "house_vs_house"
 
 
 @dataclass
@@ -78,10 +79,21 @@ class Scenario:
     nominal_rent_index: list[float]
     renting: RentingParameters | None = None
     letting: LettingParameters | None = None
+    buying_b: BuyingParameters | None = None
+    letting_b: LettingParameters | None = None
 
     def __post_init__(self) -> None:
-        if (self.renting is None) == (self.letting is None):
-            raise ValueError("exactly one of renting or letting is required")
+        two_house = self.buying_b is not None
+        if two_house:
+            if self.renting is not None:
+                raise ValueError("two-house mode cannot include renting")
+            if self.letting is None or self.letting_b is None:
+                raise ValueError("two-house mode needs letting for both houses")
+        else:
+            if self.letting_b is not None:
+                raise ValueError("letting_b requires buying_b")
+            if (self.renting is None) == (self.letting is None):
+                raise ValueError("exactly one of renting or letting is required")
         if not self.nominal_house_index or self.nominal_house_index[0] == 0:
             raise ValueError("nominal_house_index must start with a non-zero base")
         if not self.nominal_rent_index or self.nominal_rent_index[0] == 0:
@@ -89,4 +101,8 @@ class Scenario:
 
     @property
     def mode(self) -> str:
-        return MODE_LET_VS_INVEST if self.letting is not None else MODE_RENT_VS_BUY
+        if self.buying_b is not None:
+            return MODE_HOUSE_VS_HOUSE
+        if self.letting is not None:
+            return MODE_LET_VS_INVEST
+        return MODE_RENT_VS_BUY

@@ -1,6 +1,6 @@
 # Rent vs buy
 
-Compare month-by-month wealth until the mortgage is paid off: **buying vs renting** a home to live in, or **buy-to-let vs an investment account**.
+Compare month-by-month wealth until the mortgage is paid off: **buying vs renting** a home to live in, **buy-to-let vs an investment account**, or **two houses as investments**.
 
 ## How to run
 

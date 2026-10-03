@@ -4,7 +4,7 @@ This file is for future coding agents. Follow the user's methodology; do not inv
 
 ## What this project is
 
-A Streamlit tool in **HUF** with two modes: **buying vs renting** a home to live in, and **buy-to-let vs a cash investment account**. Horizon is origination (month 0) through the last mortgage payment. The model is static and month-by-month.
+A Streamlit tool in **HUF** with three modes: **buying vs renting** a home to live in, **buy-to-let vs a cash investment account**, and **house A vs house B** as two buy-to-let investments. Horizon is origination (month 0) through the last mortgage payment (the longer loan, in two-house mode). The model is static and month-by-month.
 
 Do not change the wealth equations unless the user asks. Keep transfer duty and the 10% down-payment floor as fixed rules unless they change them.
 
@@ -40,9 +40,11 @@ Derived: `loan_amount = purchase_price - down_payment`, `transfer_duty = purchas
 
 **Renting** (`RentingParameters`, rent-vs-buy only): `deposit`, `current_rent` (monthly HUF).
 
-**Letting** (`LettingParameters`, let-vs-invest only): `initial_rent` (monthly HUF received). No tenant deposit.
+**Letting** (`LettingParameters`): `initial_rent` (monthly HUF received). No tenant deposit. Used in let-vs-invest (one house) and house-vs-house (both houses).
 
-**Shared:** `Scenario.investment_return` — one leftover-cash return for both paths, HUF-denominated. Exactly one of `renting` or `letting` is set. `nominal_house_index` and `nominal_rent_index` are yearly series from the Expected indices tab (`nominal = real × inflation deflator / 100`).
+**Two-house** (`buying` / `letting` = house A, `buying_b` / `letting_b` = house B). Shared leftover `investment_return` and the same nominal indices.
+
+**Shared:** `Scenario.investment_return` — one leftover-cash return for both paths, HUF-denominated. `nominal_house_index` and `nominal_rent_index` are yearly series from the Expected indices tab (`nominal = real × inflation deflator / 100`). Exactly one comparison: renting, letting (vs cash), or two houses.
 
 **Fixed constants** in `parameters.py`:
 
@@ -53,26 +55,27 @@ Derived: `loan_amount = purchase_price - down_payment`, `transfer_duty = purchas
 
 Positive cashflow = net outflow. Rent received on the let path reduces (or reverses) the landlord’s monthly outflow.
 
-- Month 0: house path pays down payment + transfer duty. Rent-vs-buy: renter pays deposit. Let-vs-invest: the cash account pays nothing. No mortgage payment and no rent yet.
-- Months 1…N: house path pays the constant fully amortizing instalment (principal + interest, monthly rate = annual / 12). Rent-vs-buy: renter pays `current_rent * R_y / R_0` with `y = (month - 1) // 12`. Let-vs-invest: landlord *receives* `initial_rent * R_y / R_0`, so net house-path cashflow is instalment minus rent; cash account cashflow is 0. `R` is the yearly nominal rent index (last value held if the mortgage runs past the series).
+- Month 0: house path pays down payment + transfer duty. Rent-vs-buy: renter pays deposit. Let-vs-invest: the cash account pays nothing. House-vs-house: each house pays its own down payment + duty. No mortgage payment and no rent yet.
+- Months 1…N: house path pays the constant fully amortizing instalment (principal + interest, monthly rate = annual / 12) while the loan is outstanding, else 0. Rent-vs-buy: renter pays `current_rent * R_y / R_0` with `y = (month - 1) // 12`. Let-vs-invest: landlord *receives* `initial_rent * R_y / R_0`, so net house-path cashflow is instalment minus rent; cash account cashflow is 0. House-vs-house: each house’s net cashflow is instalment minus its own indexed rent. `R` is the yearly nominal rent index (last value held if the horizon runs past the series).
 - Leftover: compare net outflows each stage; the cheaper path (smaller outflow / larger inflow) invests the difference. Grow existing investment balances first (`(1 + r)**(1/12) - 1`), then add that month's leftover.
-- House value: `purchase_price * (H_m / H_0) * (1 - amortization_and_repairs) ** (month / 12)`. `H_m` is the nominal house index linearly interpolated between yearly points. Amortization/repairs are a value haircut, not a cash cost.
-- Remaining principal after `month` payments; ~0 at the end.
+- House value: `purchase_price * (H_m / H_0) * (1 - amortization_and_repairs) ** (month / 12)`. `H_m` is the nominal house index linearly interpolated between yearly points. Amortization/repairs are a value haircut, not a cash cost. Two-house mode uses each house’s own purchase price and amort rate on the shared index.
+- Remaining principal after `month` payments; ~0 after that house’s last payment.
 - House-path wealth = investment + house − remaining principal.
 - Rent-vs-buy other wealth = deposit (face value, not invested) + investment.
 - Let-vs-invest other wealth = investment only.
+- House-vs-house other wealth = house B investment + house B value − house B remaining principal. Horizon is `max` of the two mortgage lengths.
 
 API: `WealthModel(scenario).at(month)` or `.timeline()`.
 
 ## UI conventions
 
-- Mode radio at the top of **Wealth comparison**: Rent vs buy / Buy-to-let vs invest.
+- Mode radio at the top of **Wealth comparison**: Rent vs buy / Buy-to-let vs invest / House A vs house B.
 - Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/`. Realized KSH history through 2026 (rebased so 2026 = 100) is shown locked; only 2027–2056 can be edited (click a year, then the vertical slider). Rent and house plots show real and nominal. Historical inflation is implied from KSH rent real vs nominal. The wealth model uses only the expected (post-2026) nominal series.
 - Parameters live on the **main page** (three columns: Buying, Renting or Letting, Investment), not a sidebar.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.
 - Defaults: purchase 70 000 000, down 15 000 000, mortgage 25 years at 3%, amort/repairs 1%, deposit 500 000, rent 250 000, investment return 8%, inflation 3%/year, real rent/house indices 100.
-- Chart: wealth vs years; Plotly `separators=". "` and grouped HUF ticks. Series names follow the mode (Buying/Renting or Buy-to-let/Investment account).
+- Chart: wealth vs years; Plotly `separators=". "` and grouped HUF ticks. Series names follow the mode (Buying/Renting, Buy-to-let/Investment account, or House A/House B).
 
 ## What not to do
 
