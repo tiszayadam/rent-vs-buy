@@ -5,6 +5,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
+from indices.tab import render_expected_indices_tab
 from model import WealthModel
 from parameters import (
     MIN_DOWN_PAYMENT_RATE,
@@ -135,211 +136,218 @@ The chart below plots these two wealth series over the mortgage.
 """
 
 
+def render_wealth_tab() -> None:
+    mode = st.radio(
+        "Comparison",
+        options=(MODE_RENT_VS_BUY, MODE_LET_VS_INVEST),
+        format_func=lambda m: (
+            "Rent vs buy" if m == MODE_RENT_VS_BUY else "Buy-to-let vs invest"
+        ),
+        horizontal=True,
+    )
+
+    if mode == MODE_LET_VS_INVEST:
+        st.caption("Wealth from origination through the last mortgage payment — as an investment.")
+        st.markdown(LET_VS_INVEST_DESCRIPTION)
+    else:
+        st.caption("Wealth from origination through the last mortgage payment.")
+        st.markdown(RENT_VS_BUY_DESCRIPTION)
+
+    buy_col, mid_col, inv_col = st.columns(3)
+
+    with buy_col:
+        st.header("Buying")
+        purchase_price = st.number_input(
+            "Purchase price (HUF)",
+            min_value=0.0,
+            value=70_000_000.0,
+            step=1_000_000.0,
+            format="%.0f",
+        )
+        min_down = MIN_DOWN_PAYMENT_RATE * purchase_price
+        down_payment = st.number_input(
+            "Down payment (HUF)",
+            min_value=float(min_down),
+            max_value=float(purchase_price) if purchase_price > 0 else 0.0,
+            value=max(15_000_000.0, min_down),
+            step=1_000_000.0,
+            format="%.0f",
+        )
+        st.caption(
+            f"Minimum {MIN_DOWN_PAYMENT_RATE:.0%} of purchase price "
+            f"({format_grouped(min_down)} HUF)."
+        )
+        mortgage_years = st.number_input("Mortgage length (years)", min_value=0, value=25, step=1)
+        mortgage_rate_pct = st.number_input(
+            "Fixed mortgage interest rate (% / year)",
+            min_value=0.0,
+            value=3.0,
+            step=0.1,
+            format="%.1f",
+        )
+        amort_pct = st.number_input(
+            "Amortization + repairs (% of home value / year)",
+            min_value=0.0,
+            value=1.0,
+            step=0.1,
+            format="%.1f",
+        )
+        appreciation_pct = st.number_input(
+            "House value appreciation (% / year)",
+            min_value=-20.0,
+            value=3.0,
+            step=0.1,
+            format="%.1f",
+        )
+        st.caption(
+            f"Transfer duty (vagyonszerzési illeték) is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
+            f"({format_grouped(purchase_price * TRANSFER_DUTY_RATE)} HUF)."
+        )
+
+    with mid_col:
+        if mode == MODE_LET_VS_INVEST:
+            st.header("Letting")
+            initial_rent = st.number_input(
+                "Initial monthly rent (HUF)",
+                min_value=0.0,
+                value=250_000.0,
+                step=10_000.0,
+                format="%.0f",
+            )
+            let_increase_pct = st.number_input(
+                "Yearly rent increase (% / year)",
+                min_value=-20.0,
+                value=3.0,
+                step=0.1,
+                format="%.1f",
+                key="let_yearly_rent_increase",
+            )
+        else:
+            st.header("Renting")
+            deposit = st.number_input(
+                "Deposit (HUF)",
+                min_value=0.0,
+                value=500_000.0,
+                step=10_000.0,
+                format="%.0f",
+            )
+            current_rent = st.number_input(
+                "Current monthly rent (HUF)",
+                min_value=0.0,
+                value=250_000.0,
+                step=10_000.0,
+                format="%.0f",
+            )
+            rent_increase_pct = st.number_input(
+                "Yearly rent increase (% / year)",
+                min_value=-20.0,
+                value=3.0,
+                step=0.1,
+                format="%.1f",
+                key="rent_yearly_rent_increase",
+            )
+
+    with inv_col:
+        st.header("Investment")
+        investment_pct = st.number_input(
+            "Investment return on leftover cash (% / year, HUF)",
+            min_value=-50.0,
+            value=8.0,
+            step=0.1,
+            format="%.1f",
+        )
+        st.caption("Return is in HUF.")
+
+    try:
+        buying = BuyingParameters(
+            purchase_price=purchase_price,
+            down_payment=down_payment,
+            mortgage_length_years=int(mortgage_years),
+            mortgage_interest_rate=mortgage_rate_pct / 100,
+            amortization_and_repairs_rate=amort_pct / 100,
+            appreciation_rate=appreciation_pct / 100,
+        )
+        if mode == MODE_LET_VS_INVEST:
+            scenario = Scenario(
+                buying=buying,
+                investment_return=investment_pct / 100,
+                letting=LettingParameters(
+                    initial_rent=initial_rent,
+                    yearly_rent_increase=let_increase_pct / 100,
+                ),
+            )
+        else:
+            scenario = Scenario(
+                buying=buying,
+                investment_return=investment_pct / 100,
+                renting=RentingParameters(
+                    deposit=deposit,
+                    current_rent=current_rent,
+                    yearly_rent_increase=rent_increase_pct / 100,
+                ),
+            )
+        model = WealthModel(scenario)
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    points = model.timeline()
+    end = points[-1]
+    years = [p.month / 12 for p in points]
+
+    if mode == MODE_LET_VS_INVEST:
+        house_label = "Buy-to-let"
+        other_label = "Investment account"
+    else:
+        house_label = "Buying"
+        other_label = "Renting"
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=[p.buying_wealth for p in points],
+            name=house_label,
+            mode="lines",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=[p.renting_wealth for p in points],
+            name=other_label,
+            mode="lines",
+        )
+    )
+    fig.update_layout(
+        xaxis_title="Years",
+        yaxis_title="Wealth (HUF)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        margin=dict(t=40, b=40),
+        hovermode="x unified",
+        height=520,
+        separators=". ",
+        yaxis=dict(tickformat=",.0f"),
+    )
+    st.plotly_chart(fig, width="stretch")
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric(f"{house_label} wealth at end", f"{format_grouped(end.buying_wealth)} HUF")
+    m2.metric(f"{other_label} wealth at end", f"{format_grouped(end.renting_wealth)} HUF")
+    m3.metric("Monthly mortgage instalment", f"{format_grouped(model.mortgage.monthly_payment())} HUF")
+    if mode == MODE_LET_VS_INVEST:
+        net_month_one = model.at(1).buying_cashflow
+        st.caption(
+            f"Month-1 net buy-to-let cashflow (instalment − rent): "
+            f"{format_grouped(net_month_one)} HUF "
+            f"({'outflow' if net_month_one >= 0 else 'inflow'})."
+        )
+
+
 st.set_page_config(page_title="Rent vs buy", layout="wide")
 st.title("Rent vs buy")
-
-mode = st.radio(
-    "Comparison",
-    options=(MODE_RENT_VS_BUY, MODE_LET_VS_INVEST),
-    format_func=lambda m: (
-        "Rent vs buy" if m == MODE_RENT_VS_BUY else "Buy-to-let vs invest"
-    ),
-    horizontal=True,
-)
-
-if mode == MODE_LET_VS_INVEST:
-    st.caption("Wealth from origination through the last mortgage payment — as an investment.")
-    st.markdown(LET_VS_INVEST_DESCRIPTION)
-else:
-    st.caption("Wealth from origination through the last mortgage payment.")
-    st.markdown(RENT_VS_BUY_DESCRIPTION)
-
-buy_col, mid_col, inv_col = st.columns(3)
-
-with buy_col:
-    st.header("Buying")
-    purchase_price = st.number_input(
-        "Purchase price (HUF)",
-        min_value=0.0,
-        value=70_000_000.0,
-        step=1_000_000.0,
-        format="%.0f",
-    )
-    min_down = MIN_DOWN_PAYMENT_RATE * purchase_price
-    down_payment = st.number_input(
-        "Down payment (HUF)",
-        min_value=float(min_down),
-        max_value=float(purchase_price) if purchase_price > 0 else 0.0,
-        value=max(15_000_000.0, min_down),
-        step=1_000_000.0,
-        format="%.0f",
-    )
-    st.caption(
-        f"Minimum {MIN_DOWN_PAYMENT_RATE:.0%} of purchase price "
-        f"({format_grouped(min_down)} HUF)."
-    )
-    mortgage_years = st.number_input("Mortgage length (years)", min_value=0, value=25, step=1)
-    mortgage_rate_pct = st.number_input(
-        "Fixed mortgage interest rate (% / year)",
-        min_value=0.0,
-        value=3.0,
-        step=0.1,
-        format="%.1f",
-    )
-    amort_pct = st.number_input(
-        "Amortization + repairs (% of home value / year)",
-        min_value=0.0,
-        value=1.0,
-        step=0.1,
-        format="%.1f",
-    )
-    appreciation_pct = st.number_input(
-        "House value appreciation (% / year)",
-        min_value=-20.0,
-        value=3.0,
-        step=0.1,
-        format="%.1f",
-    )
-    st.caption(
-        f"Transfer duty (vagyonszerzési illeték) is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
-        f"({format_grouped(purchase_price * TRANSFER_DUTY_RATE)} HUF)."
-    )
-
-with mid_col:
-    if mode == MODE_LET_VS_INVEST:
-        st.header("Letting")
-        initial_rent = st.number_input(
-            "Initial monthly rent (HUF)",
-            min_value=0.0,
-            value=250_000.0,
-            step=10_000.0,
-            format="%.0f",
-        )
-        let_increase_pct = st.number_input(
-            "Yearly rent increase (% / year)",
-            min_value=-20.0,
-            value=3.0,
-            step=0.1,
-            format="%.1f",
-            key="let_yearly_rent_increase",
-        )
-    else:
-        st.header("Renting")
-        deposit = st.number_input(
-            "Deposit (HUF)",
-            min_value=0.0,
-            value=500_000.0,
-            step=10_000.0,
-            format="%.0f",
-        )
-        current_rent = st.number_input(
-            "Current monthly rent (HUF)",
-            min_value=0.0,
-            value=250_000.0,
-            step=10_000.0,
-            format="%.0f",
-        )
-        rent_increase_pct = st.number_input(
-            "Yearly rent increase (% / year)",
-            min_value=-20.0,
-            value=3.0,
-            step=0.1,
-            format="%.1f",
-            key="rent_yearly_rent_increase",
-        )
-
-with inv_col:
-    st.header("Investment")
-    investment_pct = st.number_input(
-        "Investment return on leftover cash (% / year, HUF)",
-        min_value=-50.0,
-        value=8.0,
-        step=0.1,
-        format="%.1f",
-    )
-    st.caption("Return is in HUF.")
-
-try:
-    buying = BuyingParameters(
-        purchase_price=purchase_price,
-        down_payment=down_payment,
-        mortgage_length_years=int(mortgage_years),
-        mortgage_interest_rate=mortgage_rate_pct / 100,
-        amortization_and_repairs_rate=amort_pct / 100,
-        appreciation_rate=appreciation_pct / 100,
-    )
-    if mode == MODE_LET_VS_INVEST:
-        scenario = Scenario(
-            buying=buying,
-            investment_return=investment_pct / 100,
-            letting=LettingParameters(
-                initial_rent=initial_rent,
-                yearly_rent_increase=let_increase_pct / 100,
-            ),
-        )
-    else:
-        scenario = Scenario(
-            buying=buying,
-            investment_return=investment_pct / 100,
-            renting=RentingParameters(
-                deposit=deposit,
-                current_rent=current_rent,
-                yearly_rent_increase=rent_increase_pct / 100,
-            ),
-        )
-    model = WealthModel(scenario)
-except ValueError as exc:
-    st.error(str(exc))
-    st.stop()
-
-points = model.timeline()
-end = points[-1]
-years = [p.month / 12 for p in points]
-
-if mode == MODE_LET_VS_INVEST:
-    house_label = "Buy-to-let"
-    other_label = "Investment account"
-else:
-    house_label = "Buying"
-    other_label = "Renting"
-
-fig = go.Figure()
-fig.add_trace(
-    go.Scatter(
-        x=years,
-        y=[p.buying_wealth for p in points],
-        name=house_label,
-        mode="lines",
-    )
-)
-fig.add_trace(
-    go.Scatter(
-        x=years,
-        y=[p.renting_wealth for p in points],
-        name=other_label,
-        mode="lines",
-    )
-)
-fig.update_layout(
-    xaxis_title="Years",
-    yaxis_title="Wealth (HUF)",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-    margin=dict(t=40, b=40),
-    hovermode="x unified",
-    height=520,
-    separators=". ",
-    yaxis=dict(tickformat=",.0f"),
-)
-st.plotly_chart(fig, width="stretch")
-
-m1, m2, m3 = st.columns(3)
-m1.metric(f"{house_label} wealth at end", f"{format_grouped(end.buying_wealth)} HUF")
-m2.metric(f"{other_label} wealth at end", f"{format_grouped(end.renting_wealth)} HUF")
-m3.metric("Monthly mortgage instalment", f"{format_grouped(model.mortgage.monthly_payment())} HUF")
-if mode == MODE_LET_VS_INVEST:
-    net_month_one = model.at(1).buying_cashflow
-    st.caption(
-        f"Month-1 net buy-to-let cashflow (instalment − rent): "
-        f"{format_grouped(net_month_one)} HUF "
-        f"({'outflow' if net_month_one >= 0 else 'inflow'})."
-    )
+wealth_tab, indices_tab = st.tabs(["Wealth comparison", "Expected indices"])
+with wealth_tab:
+    render_wealth_tab()
+with indices_tab:
+    render_expected_indices_tab()

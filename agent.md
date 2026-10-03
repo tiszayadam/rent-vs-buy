@@ -20,6 +20,7 @@ User-facing (keep at repo root):
 
 Implementation (do not scatter new Python at the repo root except `streamlit_app.py`):
 
+- `src/indices/` — expected inflation / real rent / real house index graphs (independent of the wealth model for now)
 - `src/app.py` — Streamlit UI
 - `src/parameters.py` — dataclasses and constants
 - `src/mortgage.py` — fully amortizing fixed-rate mortgage
@@ -65,7 +66,8 @@ API: `WealthModel(scenario).at(month)` or `.timeline()`.
 
 ## UI conventions
 
-- Mode radio at the top: Rent vs buy / Buy-to-let vs invest.
+- Mode radio at the top of **Wealth comparison**: Rent vs buy / Buy-to-let vs invest.
+- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/` and are not wired into the wealth model yet. Streamlit cannot drag Plotly points; click a year then use the slider.
 - Parameters live on the **main page** (three columns: Buying, Renting or Letting, Investment), not a sidebar.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.
