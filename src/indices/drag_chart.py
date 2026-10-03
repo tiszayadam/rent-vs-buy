@@ -9,6 +9,35 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
+CHART_HEIGHT = 320
+_SLIDER_TRACK_PX = 260
+
+_VERTICAL_SLIDER_CSS = f"""
+<style>
+div[data-testid="stHorizontalBlock"]:has([class*="_index_vslider"]),
+div[data-testid="stHorizontalBlock"]:has([class*="_index_vslider"]) > div,
+div[class*="_index_vslider"] {{
+    overflow: visible !important;
+}}
+div[class*="_index_vslider"] {{
+    height: {CHART_HEIGHT}px;
+}}
+div[class*="_index_vslider"] [data-testid="stSlider"] > div[role="group"] {{
+    transform: rotate(-90deg);
+    transform-origin: center center;
+    width: {_SLIDER_TRACK_PX}px !important;
+    margin-top: {(_SLIDER_TRACK_PX / 2) - 16}px;
+    margin-left: -{(_SLIDER_TRACK_PX / 2) - 28}px;
+}}
+div[class*="_index_vslider"] [data-testid="stSliderThumbValue"] {{
+    transform: rotate(90deg);
+}}
+div[class*="_index_vslider"] [data-testid="stSliderTickBar"] {{
+    display: none;
+}}
+</style>
+"""
+
 
 def yearly_drag_chart(
     *,
@@ -76,48 +105,54 @@ def yearly_drag_chart(
         yaxis_title=y_label,
         yaxis=dict(range=[y_low - pad, y_high + pad]),
         margin=dict(t=24, b=40, l=40, r=16),
-        height=320,
+        height=CHART_HEIGHT,
         hovermode="closest",
         showlegend=bool(overlays),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     )
     fig.update_xaxes(dtick=2)
 
-    event = st.plotly_chart(
-        fig,
-        key=f"{key}_plot",
-        on_select="rerun",
-        selection_mode="points",
-        config={"displayModeBar": False},
-        width="stretch",
-    )
-    points = getattr(getattr(event, "selection", None), "points", None) or []
-    for pt in points:
-        idx = None
-        if "point_index" in pt and pt.get("curve_number", 0) == 0:
-            idx = int(pt["point_index"])
-        elif "x" in pt:
-            try:
-                idx = years.index(int(pt["x"]))
-            except (ValueError, TypeError):
-                idx = None
-        if idx is not None:
-            st.session_state[selected_key] = idx
-            selected = idx
-            break
+    st.markdown(_VERTICAL_SLIDER_CSS, unsafe_allow_html=True)
 
-    year = years[selected]
-    slider_label = f"Move {year}"
-    if y_suffix:
-        slider_label += f" ({y_suffix})"
-    new_val = st.slider(
-        slider_label,
-        min_value=float(y_min),
-        max_value=float(y_max),
-        value=float(values[selected]),
-        step=0.1,
-        key=f"{key}_slider_{year}",
-    )
+    with st.container(horizontal=True, wrap=False, vertical_alignment="center", gap="small"):
+        event = st.plotly_chart(
+            fig,
+            key=f"{key}_plot",
+            on_select="rerun",
+            selection_mode="points",
+            config={"displayModeBar": False},
+            width="stretch",
+        )
+        points = getattr(getattr(event, "selection", None), "points", None) or []
+        for pt in points:
+            idx = None
+            if "point_index" in pt and pt.get("curve_number", 0) == 0:
+                idx = int(pt["point_index"])
+            elif "x" in pt:
+                try:
+                    idx = years.index(int(pt["x"]))
+                except (ValueError, TypeError):
+                    idx = None
+            if idx is not None:
+                st.session_state[selected_key] = idx
+                selected = idx
+                break
+
+        year = years[selected]
+        slider_label = f"{year}"
+        if y_suffix:
+            slider_label += f" ({y_suffix})"
+        with st.container(key=f"{key}_index_vslider", width=96, height=CHART_HEIGHT):
+            new_val = st.slider(
+                slider_label,
+                min_value=float(y_min),
+                max_value=float(y_max),
+                value=float(values[selected]),
+                step=0.1,
+                key=f"{key}_slider_{year}",
+                help=f"Move the {year} point on the real series",
+                label_visibility="collapsed",
+            )
     updated = [float(v) for v in values]
     updated[selected] = float(new_val)
     return updated

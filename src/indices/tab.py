@@ -43,7 +43,7 @@ def render_expected_indices_tab() -> None:
 
     st.subheader("Expected indices")
     st.caption(
-        "Yearly series from 2027 through 2056. Click a point, then use the slider under the chart "
+        "Yearly series from 2027 through 2056. Click a point, then use the slider beside the chart "
         "to move the real series. Nominal = real × cumulative inflation deflator / 100 "
         "(deflator = 100 in 2027). Streamlit cannot drag points on the plot itself. "
         "The wealth comparison uses these nominal rent and house series instead of constant exponential growth."
