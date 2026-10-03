@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from indices.drag_chart import yearly_drag_chart
+from indices.historical import house_history, implied_inflation_pct, rent_history
 from indices.series import default_inflation_pct, default_real_index, nominal_index, years
 
 
@@ -37,25 +38,50 @@ def current_nominal_paths() -> tuple[list[float], list[float]]:
     return house, rent
 
 
+def _load_history() -> dict[str, object] | None:
+    try:
+        rent_years, rent_nom, rent_real = rent_history()
+        house_years, house_nom, house_real = house_history()
+        inf_years, inf_pct = implied_inflation_pct(rent_years, rent_nom, rent_real)
+    except FileNotFoundError as exc:
+        st.warning(f"Historical KSH files not found: {exc}")
+        return None
+    return {
+        "rent_years": rent_years,
+        "rent_nom": rent_nom,
+        "rent_real": rent_real,
+        "house_years": house_years,
+        "house_nom": house_nom,
+        "house_real": house_real,
+        "inf_years": inf_years,
+        "inf_pct": inf_pct,
+    }
+
+
 def render_expected_indices_tab() -> None:
     ensure_index_state()
     yrs = years()
+    history = _load_history()
 
     st.subheader("Expected indices")
     st.caption(
-        "Yearly series from 2027 through 2056. Click a point, then use the slider beside the chart "
-        "to move the real series. Nominal = real × cumulative inflation deflator / 100 "
+        "Grey history is realized KSH data through 2026 (2026 = 100) and cannot be edited. "
+        "Click a year from 2027 onward, then use the slider beside the chart to move the "
+        "expected real series. Nominal = real × cumulative inflation deflator / 100 "
         "(deflator = 100 in 2027). Streamlit cannot drag points on the plot itself. "
-        "The wealth comparison uses these nominal rent and house series instead of constant exponential growth."
+        "The wealth comparison uses the expected (post-2026) nominal rent and house series."
     )
 
-    if st.button("Reset all to defaults"):
+    if st.button("Reset expected path to defaults"):
         st.session_state.expected_inflation_pct = default_inflation_pct()
         st.session_state.expected_real_rent_index = default_real_index()
         st.session_state.expected_real_house_index = default_real_index()
         st.rerun()
 
-    st.markdown("**Expected inflation** (% / year)")
+    inf_hist_years = history["inf_years"] if history else None
+    inf_hist_vals = history["inf_pct"] if history else None
+
+    st.markdown("**Inflation** (% / year; history implied from KSH rent, locked)")
     st.session_state.expected_inflation_pct = yearly_drag_chart(
         years=yrs,
         values=st.session_state.expected_inflation_pct,
@@ -64,9 +90,18 @@ def render_expected_indices_tab() -> None:
         y_max=15.0,
         y_suffix="%",
         key="chart_expected_inflation",
+        history_years=inf_hist_years,
+        history_values=inf_hist_vals,
     )
 
-    st.markdown("**Expected rent index** (real editable; nominal = real × deflator / 100)")
+    st.markdown("**Rent index** (history locked; expected real editable)")
+    rent_hist_kwargs = {}
+    if history:
+        rent_hist_kwargs = {
+            "history_years": history["rent_years"],
+            "history_values": history["rent_real"],
+            "history_overlays": [("Nominal", history["rent_nom"])],
+        }
     st.session_state.expected_real_rent_index = yearly_drag_chart(
         years=yrs,
         values=st.session_state.expected_real_rent_index,
@@ -83,9 +118,17 @@ def render_expected_indices_tab() -> None:
                 ),
             )
         ],
+        **rent_hist_kwargs,
     )
 
-    st.markdown("**Expected house price index** (real editable; nominal = real × deflator / 100)")
+    st.markdown("**House price index** (Budapest history locked; expected real editable)")
+    house_hist_kwargs = {}
+    if history:
+        house_hist_kwargs = {
+            "history_years": history["house_years"],
+            "history_values": history["house_real"],
+            "history_overlays": [("Nominal", history["house_nom"])],
+        }
     st.session_state.expected_real_house_index = yearly_drag_chart(
         years=yrs,
         values=st.session_state.expected_real_house_index,
@@ -102,4 +145,5 @@ def render_expected_indices_tab() -> None:
                 ),
             )
         ],
+        **house_hist_kwargs,
     )

@@ -39,6 +39,12 @@ div[class*="_index_vslider"] [data-testid="stSliderTickBar"] {{
 """
 
 
+HISTORY_REAL_COLOR = "#8b919a"
+EXPECTED_REAL_COLOR = "#1c83e1"
+HISTORY_OVERLAY_COLORS = ("#c47c4a", "#5f9e90", "#8a6bb5")
+EXPECTED_OVERLAY_COLORS = ("#f77f00", "#2a9d8f", "#9b5de5")
+
+
 def yearly_drag_chart(
     *,
     years: list[int],
@@ -49,6 +55,9 @@ def yearly_drag_chart(
     y_suffix: str = "",
     key: str,
     overlays: list[tuple[str, list[float]]] | None = None,
+    history_years: list[int] | None = None,
+    history_values: list[float] | None = None,
+    history_overlays: list[tuple[str, list[float]]] | None = None,
 ) -> list[float]:
     selected_key = f"{key}_selected_idx"
     if selected_key not in st.session_state:
@@ -58,6 +67,29 @@ def yearly_drag_chart(
 
     fig = go.Figure()
     primary_name = "Real" if overlays else y_label
+    has_history = bool(history_years) and history_values is not None
+    if has_history:
+        fig.add_trace(
+            go.Scatter(
+                x=history_years,
+                y=history_values,
+                mode="lines+markers",
+                name=f"{primary_name} (history)",
+                hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{primary_name} (history)</extra>",
+                marker=dict(size=8),
+                line=dict(width=2, color=HISTORY_REAL_COLOR),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[history_years[-1], years[0]],
+                y=[history_values[-1], values[0]],
+                mode="lines",
+                line=dict(width=2, color=EXPECTED_REAL_COLOR),
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
     fig.add_trace(
         go.Scatter(
             x=years,
@@ -66,11 +98,37 @@ def yearly_drag_chart(
             name=primary_name,
             hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{primary_name}</extra>",
             marker=dict(size=10),
-            line=dict(width=2, color="#1c83e1"),
+            line=dict(width=2, color=EXPECTED_REAL_COLOR),
         )
     )
-    overlay_colors = ("#f77f00", "#2a9d8f", "#9b5de5")
     for i, (name, series) in enumerate(overlays or []):
+        color = EXPECTED_OVERLAY_COLORS[i % len(EXPECTED_OVERLAY_COLORS)]
+        hist_overlay = None
+        if history_overlays and i < len(history_overlays):
+            hist_overlay = history_overlays[i]
+        if has_history and hist_overlay is not None:
+            h_name, h_series = hist_overlay
+            fig.add_trace(
+                go.Scatter(
+                    x=history_years[: len(h_series)],
+                    y=h_series,
+                    mode="lines+markers",
+                    name=f"{h_name} (history)",
+                    hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{h_name} (history)</extra>",
+                    marker=dict(size=7),
+                    line=dict(width=2, color=HISTORY_OVERLAY_COLORS[i % len(HISTORY_OVERLAY_COLORS)]),
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[history_years[-1], years[0]],
+                    y=[h_series[-1], series[0]],
+                    mode="lines",
+                    line=dict(width=2, color=color),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
         fig.add_trace(
             go.Scatter(
                 x=years[: len(series)],
@@ -79,7 +137,7 @@ def yearly_drag_chart(
                 name=name,
                 hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{name}</extra>",
                 marker=dict(size=8),
-                line=dict(width=2, color=overlay_colors[i % len(overlay_colors)]),
+                line=dict(width=2, color=color),
             )
         )
     fig.add_trace(
@@ -93,13 +151,22 @@ def yearly_drag_chart(
             showlegend=False,
         )
     )
-    y_low = y_min
-    y_high = y_max
+    y_low = min(y_min, min(values) if values else y_min)
+    y_high = max(y_max, max(values) if values else y_max)
+    if has_history:
+        y_low = min(y_low, min(history_values))
+        y_high = max(y_high, max(history_values))
     for _, series in overlays or []:
         if series:
             y_low = min(y_low, min(series))
             y_high = max(y_high, max(series))
+    for _, series in history_overlays or []:
+        if series:
+            y_low = min(y_low, min(series))
+            y_high = max(y_high, max(series))
     pad = max(1.0, (y_high - y_low) * 0.05)
+    x_all = list(history_years or []) + list(years)
+    span = (max(x_all) - min(x_all)) if x_all else 0
     fig.update_layout(
         xaxis_title="Year",
         yaxis_title=y_label,
@@ -107,10 +174,10 @@ def yearly_drag_chart(
         margin=dict(t=24, b=40, l=40, r=16),
         height=CHART_HEIGHT,
         hovermode="closest",
-        showlegend=bool(overlays),
+        showlegend=bool(overlays) or has_history,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     )
-    fig.update_xaxes(dtick=2)
+    fig.update_xaxes(dtick=5 if span > 25 else 2)
 
     st.markdown(_VERTICAL_SLIDER_CSS, unsafe_allow_html=True)
 
@@ -125,17 +192,17 @@ def yearly_drag_chart(
         )
         points = getattr(getattr(event, "selection", None), "points", None) or []
         for pt in points:
-            idx = None
-            if "point_index" in pt and pt.get("curve_number", 0) == 0:
-                idx = int(pt["point_index"])
-            elif "x" in pt:
+            year_clicked = None
+            if "x" in pt:
                 try:
-                    idx = years.index(int(pt["x"]))
+                    year_clicked = int(pt["x"])
                 except (ValueError, TypeError):
-                    idx = None
-            if idx is not None:
-                st.session_state[selected_key] = idx
-                selected = idx
+                    year_clicked = None
+            if year_clicked is None:
+                continue
+            if year_clicked in years:
+                selected = years.index(year_clicked)
+                st.session_state[selected_key] = selected
                 break
 
         year = years[selected]

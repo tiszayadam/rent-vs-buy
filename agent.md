@@ -67,7 +67,7 @@ API: `WealthModel(scenario).at(month)` or `.timeline()`.
 ## UI conventions
 
 - Mode radio at the top of **Wealth comparison**: Rent vs buy / Buy-to-let vs invest.
-- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/`. Streamlit cannot drag Plotly points; click a year then use the vertical slider beside the chart. Rent and house plots show real (editable) and nominal (`real * cumulative inflation deflator / 100`, deflator 100 in 2027). The wealth model uses those nominal series (index widgets run before the wealth tab so slider edits apply on the same rerun).
+- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/`. Realized KSH history through 2026 (rebased so 2026 = 100) is shown locked; only 2027–2056 can be edited (click a year, then the vertical slider). Rent and house plots show real and nominal. Historical inflation is implied from KSH rent real vs nominal. The wealth model uses only the expected (post-2026) nominal series.
 - Parameters live on the **main page** (three columns: Buying, Renting or Letting, Investment), not a sidebar.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.
