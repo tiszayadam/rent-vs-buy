@@ -23,7 +23,6 @@ class BuyingParameters:
     mortgage_length_years: int
     mortgage_interest_rate: float
     amortization_and_repairs_rate: float
-    appreciation_rate: float
 
     def __post_init__(self) -> None:
         if self.purchase_price < 0:
@@ -54,7 +53,6 @@ class BuyingParameters:
 class RentingParameters:
     deposit: float
     current_rent: float
-    yearly_rent_increase: float
 
     def __post_init__(self) -> None:
         if self.deposit < 0:
@@ -66,7 +64,6 @@ class RentingParameters:
 @dataclass
 class LettingParameters:
     initial_rent: float
-    yearly_rent_increase: float
 
     def __post_init__(self) -> None:
         if self.initial_rent < 0:
@@ -77,12 +74,18 @@ class LettingParameters:
 class Scenario:
     buying: BuyingParameters
     investment_return: float
+    nominal_house_index: list[float]
+    nominal_rent_index: list[float]
     renting: RentingParameters | None = None
     letting: LettingParameters | None = None
 
     def __post_init__(self) -> None:
         if (self.renting is None) == (self.letting is None):
             raise ValueError("exactly one of renting or letting is required")
+        if not self.nominal_house_index or self.nominal_house_index[0] == 0:
+            raise ValueError("nominal_house_index must start with a non-zero base")
+        if not self.nominal_rent_index or self.nominal_rent_index[0] == 0:
+            raise ValueError("nominal_rent_index must start with a non-zero base")
 
     @property
     def mode(self) -> str:

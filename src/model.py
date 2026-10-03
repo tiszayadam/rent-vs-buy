@@ -4,17 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from indices.series import house_value_from_index, rent_from_index
 from mortgage import Mortgage
 from parameters import MODE_LET_VS_INVEST, Scenario
 
 
 def _monthly_rate(annual_rate: float) -> float:
     return (1 + annual_rate) ** (1 / 12) - 1
-
-
-def _stepped_monthly_rent(initial: float, yearly_increase: float, month: int) -> float:
-    years_elapsed = (month - 1) // 12
-    return initial * (1 + yearly_increase) ** years_elapsed
 
 
 @dataclass(frozen=True)
@@ -56,32 +52,34 @@ class WealthModel:
     def timeline(self) -> list[WealthPoint]:
         return list(self._timeline)
 
-    def _cashflows(self, month: int, mortgage_payment: float) -> tuple[float, float]:
-        buying = self.scenario.buying
+    def _rent(self, month: int) -> float:
         if self.scenario.mode == MODE_LET_VS_INVEST:
             letting = self.scenario.letting
             assert letting is not None
+            initial = letting.initial_rent
+        else:
+            renting = self.scenario.renting
+            assert renting is not None
+            initial = renting.current_rent
+        return rent_from_index(initial, self.scenario.nominal_rent_index, month)
+
+    def _cashflows(self, month: int, mortgage_payment: float) -> tuple[float, float]:
+        buying = self.scenario.buying
+        if self.scenario.mode == MODE_LET_VS_INVEST:
             if month == 0:
                 return buying.down_payment + buying.transfer_duty, 0.0
-            rent_in = _stepped_monthly_rent(
-                letting.initial_rent, letting.yearly_rent_increase, month
-            )
-            return mortgage_payment - rent_in, 0.0
+            return mortgage_payment - self._rent(month), 0.0
 
         renting = self.scenario.renting
         assert renting is not None
         if month == 0:
             return buying.down_payment + buying.transfer_duty, renting.deposit
-        rent_out = _stepped_monthly_rent(
-            renting.current_rent, renting.yearly_rent_increase, month
-        )
-        return mortgage_payment, rent_out
+        return mortgage_payment, self._rent(month)
 
     def _simulate(self) -> list[WealthPoint]:
         buying = self.scenario.buying
         mortgage_payment = self.mortgage.monthly_payment()
         investment_m = _monthly_rate(self.scenario.investment_return)
-        net_house_annual = buying.appreciation_rate - buying.amortization_and_repairs_rate
         renting = self.scenario.renting
         deposit = 0.0 if renting is None else renting.deposit
 
@@ -102,7 +100,12 @@ class WealthModel:
             elif leftover < 0:
                 buy_investment += -leftover
 
-            house_value = buying.purchase_price * (1 + net_house_annual) ** (month / 12)
+            house_value = house_value_from_index(
+                buying.purchase_price,
+                self.scenario.nominal_house_index,
+                month,
+                buying.amortization_and_repairs_rate,
+            )
             remaining = self.mortgage.remaining_principal(month)
             buying_wealth = buy_investment + house_value - remaining
             renting_wealth = deposit + rent_investment

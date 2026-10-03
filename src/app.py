@@ -5,7 +5,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from indices.tab import render_expected_indices_tab
+from indices.tab import current_nominal_paths, render_expected_indices_tab
 from model import WealthModel
 from parameters import (
     MIN_DOWN_PAYMENT_RATE,
@@ -47,10 +47,10 @@ The two paths are assumed to face the same choice of housing spend at each stage
 - **Loan:** purchase price minus down payment.
 - **Each month:** a constant instalment on a fully amortizing mortgage (equal monthly payments, fixed annual rate, monthly rate = annual rate / 12). The instalment covers principal and interest, not interest only.
 
-House value at month $m$ is
+House value at month $m$ follows the **nominal house index** $H$ from the Expected indices tab (linearly interpolated between yearly points), with amortization and repairs as a value haircut:
 
 $$
-\\text{purchase price} \\times (1 + \\text{appreciation} - \\text{amortization and repairs})^{m/12}.
+\\text{purchase price} \\times \\frac{H_m}{H_0} \\times (1 - \\text{amortization and repairs})^{m/12}.
 $$
 
 Amortization and repairs reduce house *value*; they are not a separate cash outflow.
@@ -58,7 +58,7 @@ Amortization and repairs reduce house *value*; they are not a separate cash outf
 **Renting cashflows**
 
 - **Upfront:** the rental deposit, held at face value (it does not earn the investment return).
-- **Each month:** current monthly rent, increased once per year by the yearly rent increase (months 1–12 at the starting rent, then stepped up each following year).
+- **Each month:** current monthly rent scaled by the **nominal rent index** $R$ (months 1–12 use year 0, then one step per year): $\\text{current rent} \\times R_y / R_0$ with $y = \\lfloor (m-1)/12 \\rfloor$.
 
 **Leftover cash**
 
@@ -98,12 +98,12 @@ The two paths face the same cash choice at each stage. Whoever has the smaller n
 
 - **Upfront:** down payment plus transfer duty (*vagyonszerzési illeték*). Transfer duty is a fixed 4% of purchase price. Down payment must be at least 10% of purchase price.
 - **Loan:** purchase price minus down payment.
-- **Each month:** the constant fully amortizing mortgage instalment *minus* rent received. Rent received starts at the initial monthly rent and increases once per year (months 1–12 at the starting rent, then stepped up each following year). If rent exceeds the instalment, that month is a net inflow.
+- **Each month:** the constant fully amortizing mortgage instalment *minus* rent received. Rent received starts at the initial monthly rent and then follows the **nominal rent index** $R$ (months 1–12 use year 0, then one step per year). If rent exceeds the instalment, that month is a net inflow.
 
-House value at month $m$ is
+House value at month $m$ follows the **nominal house index** $H$ from the Expected indices tab (linearly interpolated between yearly points), with amortization and repairs as a value haircut:
 
 $$
-\\text{purchase price} \\times (1 + \\text{appreciation} - \\text{amortization and repairs})^{m/12}.
+\\text{purchase price} \\times \\frac{H_m}{H_0} \\times (1 - \\text{amortization and repairs})^{m/12}.
 $$
 
 Amortization and repairs reduce house *value*; they are not a separate cash outflow.
@@ -192,17 +192,11 @@ def render_wealth_tab() -> None:
             step=0.1,
             format="%.1f",
         )
-        appreciation_pct = st.number_input(
-            "House value appreciation (% / year)",
-            min_value=-20.0,
-            value=3.0,
-            step=0.1,
-            format="%.1f",
-        )
         st.caption(
             f"Transfer duty (vagyonszerzési illeték) is fixed at {TRANSFER_DUTY_RATE:.0%} of purchase price "
             f"({format_grouped(purchase_price * TRANSFER_DUTY_RATE)} HUF)."
         )
+        st.caption("House value follows the nominal house index on the Expected indices tab.")
 
     with mid_col:
         if mode == MODE_LET_VS_INVEST:
@@ -214,14 +208,7 @@ def render_wealth_tab() -> None:
                 step=10_000.0,
                 format="%.0f",
             )
-            let_increase_pct = st.number_input(
-                "Yearly rent increase (% / year)",
-                min_value=-20.0,
-                value=3.0,
-                step=0.1,
-                format="%.1f",
-                key="let_yearly_rent_increase",
-            )
+            st.caption("Rent received follows the nominal rent index on the Expected indices tab.")
         else:
             st.header("Renting")
             deposit = st.number_input(
@@ -238,14 +225,7 @@ def render_wealth_tab() -> None:
                 step=10_000.0,
                 format="%.0f",
             )
-            rent_increase_pct = st.number_input(
-                "Yearly rent increase (% / year)",
-                min_value=-20.0,
-                value=3.0,
-                step=0.1,
-                format="%.1f",
-                key="rent_yearly_rent_increase",
-            )
+            st.caption("Rent follows the nominal rent index on the Expected indices tab.")
 
     with inv_col:
         st.header("Investment")
@@ -259,31 +239,31 @@ def render_wealth_tab() -> None:
         st.caption("Return is in HUF.")
 
     try:
+        house_index, rent_index = current_nominal_paths()
         buying = BuyingParameters(
             purchase_price=purchase_price,
             down_payment=down_payment,
             mortgage_length_years=int(mortgage_years),
             mortgage_interest_rate=mortgage_rate_pct / 100,
             amortization_and_repairs_rate=amort_pct / 100,
-            appreciation_rate=appreciation_pct / 100,
         )
         if mode == MODE_LET_VS_INVEST:
             scenario = Scenario(
                 buying=buying,
                 investment_return=investment_pct / 100,
-                letting=LettingParameters(
-                    initial_rent=initial_rent,
-                    yearly_rent_increase=let_increase_pct / 100,
-                ),
+                nominal_house_index=house_index,
+                nominal_rent_index=rent_index,
+                letting=LettingParameters(initial_rent=initial_rent),
             )
         else:
             scenario = Scenario(
                 buying=buying,
                 investment_return=investment_pct / 100,
+                nominal_house_index=house_index,
+                nominal_rent_index=rent_index,
                 renting=RentingParameters(
                     deposit=deposit,
                     current_rent=current_rent,
-                    yearly_rent_increase=rent_increase_pct / 100,
                 ),
             )
         model = WealthModel(scenario)
@@ -347,7 +327,8 @@ def render_wealth_tab() -> None:
 st.set_page_config(page_title="Rent vs buy", layout="wide")
 st.title("Rent vs buy")
 wealth_tab, indices_tab = st.tabs(["Wealth comparison", "Expected indices"])
-with wealth_tab:
-    render_wealth_tab()
+# Index widgets first so a slider edit is visible to the wealth model on the same rerun.
 with indices_tab:
     render_expected_indices_tab()
+with wealth_tab:
+    render_wealth_tab()
