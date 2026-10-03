@@ -70,7 +70,7 @@ API: `WealthModel(scenario).at(month)` or `.timeline()`.
 ## UI conventions
 
 - Mode radio at the top of **Wealth comparison**: Rent vs buy / Buy-to-let vs invest / House A vs house B.
-- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/`. Realized KSH history through 2026 (rebased so 2026 = 100) is shown locked; only 2027–2056 can be edited (click a year, then the vertical slider). Rent and house plots show real and nominal. Historical inflation is implied from KSH rent real vs nominal. The wealth model uses only the expected (post-2026) nominal series.
+- Tabs: Wealth comparison | Expected indices. Index graphs live in `src/indices/`. Realized KSH history through 2026 (rebased so 2026 = 100) is shown locked. Expected knots are the next five years then every five years (2027–2031, 2036, …, 2056); click a knot and use the vertical slider or its +/− buttons (0.1 pp for inflation, 1 index point for rent/house). Other expected years are linear interpolations of those knots. Rent and house plots show real and nominal. Historical inflation is implied from KSH rent real vs nominal. The wealth model uses only the expected (post-2026) nominal series.
 - Parameters live on the **main page** (three columns: Buying, Renting or Letting, Investment), not a sidebar.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.

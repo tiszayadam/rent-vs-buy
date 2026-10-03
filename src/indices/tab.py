@@ -6,7 +6,13 @@ import streamlit as st
 
 from indices.drag_chart import yearly_drag_chart
 from indices.historical import house_history, implied_inflation_pct, rent_history
-from indices.series import default_inflation_pct, default_real_index, nominal_index, years
+from indices.series import (
+    default_inflation_pct,
+    default_real_index,
+    interpolate_from_knots,
+    nominal_index,
+    years,
+)
 
 
 def ensure_index_state() -> None:
@@ -26,7 +32,8 @@ def ensure_index_state() -> None:
         series = list(st.session_state[key])
         if len(series) != n:
             fill = 3.0 if key.endswith("pct") else 100.0
-            st.session_state[key] = (series + [fill] * n)[:n]
+            series = (series + [fill] * n)[:n]
+        st.session_state[key] = interpolate_from_knots(series, yrs)
 
 
 def current_nominal_paths() -> tuple[list[float], list[float]]:
@@ -66,10 +73,12 @@ def render_expected_indices_tab() -> None:
     st.subheader("Expected indices")
     st.caption(
         "Grey history is realized KSH data through 2026 (2026 = 100) and cannot be edited. "
-        "Click a year from 2027 onward, then use the slider beside the chart to move the "
-        "expected real series. Nominal = real × cumulative inflation deflator / 100 "
-        "(deflator = 100 in 2027). Streamlit cannot drag points on the plot itself. "
-        "The wealth comparison uses the expected (post-2026) nominal rent and house series."
+        "Only the next five expected years, then every fifth year, are editable knots "
+        "(2027–2031, 2036, …, 2056); years in between are linear interpolations. "
+        "Click a knot, then use the slider or +/− beside the chart to move the expected real series. "
+        "Nominal = real × cumulative inflation deflator / 100 (deflator = 100 in 2027). "
+        "Streamlit cannot drag points on the plot itself. The wealth comparison uses the "
+        "expected (post-2026) nominal rent and house series."
     )
 
     if st.button("Reset expected path to defaults"):

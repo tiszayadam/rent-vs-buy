@@ -9,6 +9,8 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
+from indices.series import editable_years, interpolate_from_knots
+
 CHART_HEIGHT = 320
 _SLIDER_TRACK_PX = 260
 
@@ -35,14 +37,70 @@ div[class*="_index_vslider"] [data-testid="stSliderThumbValue"] {{
 div[class*="_index_vslider"] [data-testid="stSliderTickBar"] {{
     display: none;
 }}
+div[class*="_index_vbuttons"] {{
+    height: {CHART_HEIGHT}px;
+    display: flex !important;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-top: 24px;
+    padding-bottom: 24px;
+}}
+div[class*="_index_vbuttons"] button {{
+    min-height: 2.25rem;
+    padding: 0 0.25rem !important;
+}}
 </style>
 """
+
+
+def _nudge_slider(slider_key: str, delta: float, y_min: float, y_max: float) -> None:
+    current = float(st.session_state.get(slider_key, 0.0))
+    st.session_state[slider_key] = max(
+        float(y_min),
+        min(float(y_max), round(current + delta, 1)),
+    )
 
 
 HISTORY_REAL_COLOR = "#8b919a"
 EXPECTED_REAL_COLOR = "#1c83e1"
 HISTORY_OVERLAY_COLORS = ("#c47c4a", "#5f9e90", "#8a6bb5")
 EXPECTED_OVERLAY_COLORS = ("#f77f00", "#2a9d8f", "#9b5de5")
+
+
+def _add_expected_path(
+    fig: go.Figure,
+    years: list[int],
+    values: list[float],
+    knot_years: list[int],
+    *,
+    name: str,
+    color: str,
+    y_suffix: str,
+    marker_size: int,
+    showlegend: bool,
+) -> None:
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=values,
+            mode="lines",
+            name=name,
+            hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{name}</extra>",
+            line=dict(width=2, color=color),
+            showlegend=showlegend,
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=knot_years,
+            y=[values[years.index(year)] for year in knot_years],
+            mode="markers",
+            name=name,
+            hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{name}</extra>",
+            marker=dict(size=marker_size, color=color),
+            showlegend=False,
+        )
+    )
 
 
 def yearly_drag_chart(
@@ -60,10 +118,15 @@ def yearly_drag_chart(
     history_overlays: list[tuple[str, list[float]]] | None = None,
 ) -> list[float]:
     selected_key = f"{key}_selected_idx"
+    knot_years = editable_years(years)
+    knot_indices = [years.index(year) for year in knot_years]
     if selected_key not in st.session_state:
-        st.session_state[selected_key] = 0
+        st.session_state[selected_key] = knot_indices[0] if knot_indices else 0
     selected = int(st.session_state[selected_key])
-    selected = max(0, min(len(years) - 1, selected))
+    if selected not in knot_indices:
+        selected = knot_indices[0] if knot_indices else 0
+        st.session_state[selected_key] = selected
+    values = interpolate_from_knots(values, years, knot_years)
 
     fig = go.Figure()
     primary_name = "Real" if overlays else y_label
@@ -90,16 +153,16 @@ def yearly_drag_chart(
                 showlegend=False,
             )
         )
-    fig.add_trace(
-        go.Scatter(
-            x=years,
-            y=values,
-            mode="lines+markers",
-            name=primary_name,
-            hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{primary_name}</extra>",
-            marker=dict(size=10),
-            line=dict(width=2, color=EXPECTED_REAL_COLOR),
-        )
+    _add_expected_path(
+        fig,
+        years,
+        values,
+        knot_years,
+        name=primary_name,
+        color=EXPECTED_REAL_COLOR,
+        y_suffix=y_suffix,
+        marker_size=10,
+        showlegend=bool(overlays) or has_history,
     )
     for i, (name, series) in enumerate(overlays or []):
         color = EXPECTED_OVERLAY_COLORS[i % len(EXPECTED_OVERLAY_COLORS)]
@@ -129,16 +192,16 @@ def yearly_drag_chart(
                     showlegend=False,
                 )
             )
-        fig.add_trace(
-            go.Scatter(
-                x=years[: len(series)],
-                y=series,
-                mode="lines+markers",
-                name=name,
-                hovertemplate="%{x}: %{y:.1f}" + y_suffix + f"<extra>{name}</extra>",
-                marker=dict(size=8),
-                line=dict(width=2, color=color),
-            )
+        _add_expected_path(
+            fig,
+            years[: len(series)],
+            series,
+            [year for year in knot_years if year in years[: len(series)]],
+            name=name,
+            color=color,
+            y_suffix=y_suffix,
+            marker_size=8,
+            showlegend=True,
         )
     fig.add_trace(
         go.Scatter(
@@ -200,7 +263,7 @@ def yearly_drag_chart(
                     year_clicked = None
             if year_clicked is None:
                 continue
-            if year_clicked in years:
+            if year_clicked in knot_years:
                 selected = years.index(year_clicked)
                 st.session_state[selected_key] = selected
                 break
@@ -209,6 +272,8 @@ def yearly_drag_chart(
         slider_label = f"{year}"
         if y_suffix:
             slider_label += f" ({y_suffix})"
+        slider_key = f"{key}_slider_{year}"
+        nudge_step = 0.1 if y_suffix == "%" else 1.0
         with st.container(key=f"{key}_index_vslider", width=96, height=CHART_HEIGHT):
             new_val = st.slider(
                 slider_label,
@@ -216,10 +281,27 @@ def yearly_drag_chart(
                 max_value=float(y_max),
                 value=float(values[selected]),
                 step=0.1,
-                key=f"{key}_slider_{year}",
-                help=f"Move the {year} point on the real series",
+                key=slider_key,
+                help=f"Move the {year} knot; years in between are interpolated",
                 label_visibility="collapsed",
             )
-    updated = [float(v) for v in values]
+        with st.container(key=f"{key}_index_vbuttons", width=44, height=CHART_HEIGHT):
+            st.button(
+                "+",
+                key=f"{key}_plus_{year}",
+                help=f"Increase {year} by {nudge_step:g}",
+                use_container_width=True,
+                on_click=_nudge_slider,
+                args=(slider_key, nudge_step, y_min, y_max),
+            )
+            st.button(
+                "−",
+                key=f"{key}_minus_{year}",
+                help=f"Decrease {year} by {nudge_step:g}",
+                use_container_width=True,
+                on_click=_nudge_slider,
+                args=(slider_key, -nudge_step, y_min, y_max),
+            )
+    updated = interpolate_from_knots(values, years, knot_years)
     updated[selected] = float(new_val)
-    return updated
+    return interpolate_from_knots(updated, years, knot_years)
