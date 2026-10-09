@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from indices.series import house_value_from_index, rent_from_index
+from indices.series import house_value_from_index, index_at_year, rent_from_index
 from mortgage import Mortgage
 from parameters import (
     MODE_HOUSE_VS_HOUSE,
@@ -128,7 +128,6 @@ class WealthModel:
     def _simulate(self) -> list[WealthPoint]:
         buying = self.scenario.buying
         buying_b = self.scenario.buying_b
-        investment_m = _monthly_rate(self.scenario.investment_return)
         renting = self.scenario.renting
         deposit = 0.0 if renting is None else renting.deposit
 
@@ -138,6 +137,9 @@ class WealthModel:
 
         for month in range(self.horizon_months + 1):
             if month > 0:
+                year = (month - 1) // 12
+                annual = index_at_year(self.scenario.investment_return_pct, year) / 100.0
+                investment_m = _monthly_rate(annual)
                 buy_investment *= 1 + investment_m
                 rent_investment *= 1 + investment_m
 

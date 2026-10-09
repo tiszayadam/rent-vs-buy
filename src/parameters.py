@@ -74,7 +74,7 @@ class LettingParameters:
 @dataclass
 class Scenario:
     buying: BuyingParameters
-    investment_return: float
+    investment_return_pct: list[float]
     nominal_house_index: list[float]
     nominal_rent_index: list[float]
     renting: RentingParameters | None = None
@@ -98,6 +98,8 @@ class Scenario:
             raise ValueError("nominal_house_index must start with a non-zero base")
         if not self.nominal_rent_index or self.nominal_rent_index[0] == 0:
             raise ValueError("nominal_rent_index must start with a non-zero base")
+        if not self.investment_return_pct:
+            raise ValueError("investment_return_pct must not be empty")
 
     @property
     def mode(self) -> str:

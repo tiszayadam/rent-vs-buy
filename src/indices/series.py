@@ -9,6 +9,7 @@ THEN_EVERY_N_YEARS = 5
 
 DEFAULT_INFLATION_PCT = 3.0
 DEFAULT_REAL_INDEX = 100.0
+DEFAULT_EQUITY_RETURN_PCT = 8.0
 
 
 def years() -> list[int]:
@@ -74,6 +75,10 @@ def default_inflation_pct() -> list[float]:
 
 def default_real_index() -> list[float]:
     return [DEFAULT_REAL_INDEX] * N_YEARS
+
+
+def default_equity_return_pct() -> list[float]:
+    return [DEFAULT_EQUITY_RETURN_PCT] * N_YEARS
 
 
 def inflation_deflator(inflation_pct: list[float]) -> list[float]:

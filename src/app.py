@@ -6,7 +6,12 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from indices.series import real_huf
-from indices.tab import current_nominal_paths, current_price_deflator, render_expected_indices_tab
+from indices.tab import (
+    current_equity_return_pct,
+    current_nominal_paths,
+    current_price_deflator,
+    render_expected_indices_tab,
+)
 from model import WealthModel
 from parameters import (
     MIN_DOWN_PAYMENT_RATE,
@@ -72,10 +77,10 @@ At every stage, outgoing cashflows are compared:
 Existing investment balances then grow one month at a time at
 
 $$
-(1 + \\text{investment return})^{1/12} - 1
+(1 + r_y)^{1/12} - 1
 $$
 
-before that month’s leftover (if any) is added.
+where $r_y$ is that year’s **nominal HUF equity return** from the Expected indices tab ($y = \\lfloor (m-1)/12 \\rfloor$; last value held if the horizon runs past the series). Then that month’s leftover (if any) is added.
 
 **Wealth**
 
@@ -124,10 +129,10 @@ At every stage, net cashflows are compared (outflow is positive):
 Existing investment balances then grow one month at a time at
 
 $$
-(1 + \\text{investment return})^{1/12} - 1
+(1 + r_y)^{1/12} - 1
 $$
 
-before that month’s leftover (if any) is added.
+where $r_y$ is that year’s **nominal HUF equity return** from the Expected indices tab ($y = \\lfloor (m-1)/12 \\rfloor$; last value held if the horizon runs past the series). Then that month’s leftover (if any) is added.
 
 **Wealth**
 
@@ -174,10 +179,10 @@ At every stage, net cashflows are compared (outflow is positive):
 Existing investment balances then grow one month at a time at
 
 $$
-(1 + \\text{investment return})^{1/12} - 1
+(1 + r_y)^{1/12} - 1
 $$
 
-before that month’s leftover (if any) is added.
+where $r_y$ is that year’s **nominal HUF equity return** from the Expected indices tab ($y = \\lfloor (m-1)/12 \\rfloor$; last value held if the horizon runs past the series). Then that month’s leftover (if any) is added.
 
 **Wealth**
 
@@ -329,14 +334,10 @@ def render_wealth_tab() -> None:
             )
         with inv_col:
             st.header("Investment")
-            investment_pct = st.number_input(
-                "Investment return on leftover cash (% / year, HUF)",
-                min_value=-50.0,
-                value=8.0,
-                step=0.1,
-                format="%.1f",
+            st.caption(
+                "Leftover cash follows the expected yearly nominal HUF equity return "
+                "on the Expected indices tab. Shared leftover account for both houses."
             )
-            st.caption("Return is in HUF. Shared leftover account for both houses.")
     else:
         buy_col, mid_col, inv_col = st.columns(3)
         with buy_col:
@@ -413,17 +414,14 @@ def render_wealth_tab() -> None:
 
         with inv_col:
             st.header("Investment")
-            investment_pct = st.number_input(
-                "Investment return on leftover cash (% / year, HUF)",
-                min_value=-50.0,
-                value=8.0,
-                step=0.1,
-                format="%.1f",
+            st.caption(
+                "Leftover cash follows the expected yearly nominal HUF equity return "
+                "on the Expected indices tab."
             )
-            st.caption("Return is in HUF.")
 
     try:
         house_index, rent_index = current_nominal_paths()
+        equity_return_pct = current_equity_return_pct()
         if mode == MODE_HOUSE_VS_HOUSE:
             scenario = Scenario(
                 buying=BuyingParameters(
@@ -433,7 +431,7 @@ def render_wealth_tab() -> None:
                     mortgage_interest_rate=rate_a_pct / 100,
                     amortization_and_repairs_rate=amort_a_pct / 100,
                 ),
-                investment_return=investment_pct / 100,
+                investment_return_pct=equity_return_pct,
                 nominal_house_index=house_index,
                 nominal_rent_index=rent_index,
                 letting=LettingParameters(initial_rent=rent_a),
@@ -457,7 +455,7 @@ def render_wealth_tab() -> None:
             if mode == MODE_LET_VS_INVEST:
                 scenario = Scenario(
                     buying=buying,
-                    investment_return=investment_pct / 100,
+                    investment_return_pct=equity_return_pct,
                     nominal_house_index=house_index,
                     nominal_rent_index=rent_index,
                     letting=LettingParameters(initial_rent=initial_rent),
@@ -465,7 +463,7 @@ def render_wealth_tab() -> None:
             else:
                 scenario = Scenario(
                     buying=buying,
-                    investment_return=investment_pct / 100,
+                    investment_return_pct=equity_return_pct,
                     nominal_house_index=house_index,
                     nominal_rent_index=rent_index,
                     renting=RentingParameters(

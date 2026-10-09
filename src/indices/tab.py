@@ -5,8 +5,10 @@ from __future__ import annotations
 import streamlit as st
 
 from indices.drag_chart import yearly_drag_chart
-from indices.historical import house_history, implied_inflation_pct, rent_history
+from indices.historical import house_history, implied_inflation_pct, rent_history, vwce_return_history
 from indices.series import (
+    DEFAULT_EQUITY_RETURN_PCT,
+    default_equity_return_pct,
     default_inflation_pct,
     default_real_index,
     inflation_deflator,
@@ -24,15 +26,18 @@ def ensure_index_state() -> None:
         st.session_state.expected_real_rent_index = default_real_index()
     if "expected_real_house_index" not in st.session_state:
         st.session_state.expected_real_house_index = default_real_index()
+    if "expected_equity_return_pct" not in st.session_state:
+        st.session_state.expected_equity_return_pct = default_equity_return_pct()
     n = len(yrs)
-    for key in (
-        "expected_inflation_pct",
-        "expected_real_rent_index",
-        "expected_real_house_index",
-    ):
+    fills = {
+        "expected_inflation_pct": 3.0,
+        "expected_real_rent_index": 100.0,
+        "expected_real_house_index": 100.0,
+        "expected_equity_return_pct": DEFAULT_EQUITY_RETURN_PCT,
+    }
+    for key, fill in fills.items():
         series = list(st.session_state[key])
         if len(series) != n:
-            fill = 3.0 if key.endswith("pct") else 100.0
             series = (series + [fill] * n)[:n]
         st.session_state[key] = interpolate_from_knots(series, yrs)
 
@@ -52,13 +57,20 @@ def current_price_deflator() -> list[float]:
     return inflation_deflator(st.session_state.expected_inflation_pct)
 
 
+def current_equity_return_pct() -> list[float]:
+    """Expected yearly nominal HUF equity returns (percent) for leftover cash."""
+    ensure_index_state()
+    return list(st.session_state.expected_equity_return_pct)
+
+
 def _load_history() -> dict[str, object] | None:
     try:
         rent_years, rent_nom, rent_real = rent_history()
         house_years, house_nom, house_real = house_history()
         inf_years, inf_pct = implied_inflation_pct(rent_years, rent_nom, rent_real)
+        equity_years, equity_pct = vwce_return_history()
     except FileNotFoundError as exc:
-        st.warning(f"Historical KSH files not found: {exc}")
+        st.warning(f"Historical index files not found: {exc}")
         return None
     return {
         "rent_years": rent_years,
@@ -69,6 +81,8 @@ def _load_history() -> dict[str, object] | None:
         "house_real": house_real,
         "inf_years": inf_years,
         "inf_pct": inf_pct,
+        "equity_years": equity_years,
+        "equity_pct": equity_pct,
     }
 
 
@@ -85,13 +99,17 @@ def render_expected_indices_tab() -> None:
         "Click a knot, then use the slider or +/− beside the chart to move the expected real series. "
         "Nominal = real × cumulative inflation deflator / 100 (deflator = 100 in 2027). "
         "Streamlit cannot drag points on the plot itself. The wealth comparison uses the "
-        "expected (post-2026) nominal rent and house series."
+        "expected (post-2026) nominal rent, house, and equity-return series. "
+        "Equity returns are calendar-year HUF total returns (VWCE); a 2026 house/rent "
+        "index level lines up with the 2025 realized stock return, so history starts in 2015. "
+        "2026 YTD equity return is 12%; expected years default to 8%."
     )
 
     if st.button("Reset expected path to defaults"):
         st.session_state.expected_inflation_pct = default_inflation_pct()
         st.session_state.expected_real_rent_index = default_real_index()
         st.session_state.expected_real_house_index = default_real_index()
+        st.session_state.expected_equity_return_pct = default_equity_return_pct()
         st.rerun()
 
     inf_hist_years = history["inf_years"] if history else None
@@ -162,4 +180,22 @@ def render_expected_indices_tab() -> None:
             )
         ],
         **house_hist_kwargs,
+    )
+
+    st.markdown("**Equity return** (nominal % / year, HUF; VWCE history locked; expected editable)")
+    equity_hist_kwargs = {}
+    if history:
+        equity_hist_kwargs = {
+            "history_years": history["equity_years"],
+            "history_values": history["equity_pct"],
+        }
+    st.session_state.expected_equity_return_pct = yearly_drag_chart(
+        years=yrs,
+        values=st.session_state.expected_equity_return_pct,
+        y_label="% / year",
+        y_min=-20.0,
+        y_max=40.0,
+        y_suffix="%",
+        key="chart_expected_equity_return",
+        **equity_hist_kwargs,
     )
