@@ -9,6 +9,7 @@ from indices.historical import house_history, implied_inflation_pct, rent_histor
 from indices.series import (
     default_inflation_pct,
     default_real_index,
+    inflation_deflator,
     interpolate_from_knots,
     nominal_index,
     years,
@@ -43,6 +44,12 @@ def current_nominal_paths() -> tuple[list[float], list[float]]:
     house = nominal_index(st.session_state.expected_real_house_index, inflation)
     rent = nominal_index(st.session_state.expected_real_rent_index, inflation)
     return house, rent
+
+
+def current_price_deflator() -> list[float]:
+    """Cumulative CPI deflator, 100 in the first expected year (2027)."""
+    ensure_index_state()
+    return inflation_deflator(st.session_state.expected_inflation_pct)
 
 
 def _load_history() -> dict[str, object] | None:

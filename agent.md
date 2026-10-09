@@ -64,6 +64,7 @@ Positive cashflow = net outflow. Rent received on the let path reduces (or rever
 - Rent-vs-buy other wealth = deposit (face value, not invested) + investment.
 - Let-vs-invest other wealth = investment only.
 - House-vs-house other wealth = house B investment + house B value − house B remaining principal. Horizon is `max` of the two mortgage lengths.
+- The leftover engine stays nominal. The wealth chart and end metrics divide that stock by the Expected-indices CPI deflator (100 in 2027, linear between yearly points) so they are real 2027 HUF. Instalments and month-1 cashflow captions stay nominal.
 
 API: `WealthModel(scenario).at(month)` or `.timeline()`.
 
@@ -75,7 +76,7 @@ API: `WealthModel(scenario).at(month)` or `.timeline()`.
 - HUF **inputs** use Streamlit `st.number_input` so +/- sit inside the field (native spinbuttons). Native HTML number fields cannot show `70 000 000` grouping; captions, metrics, and the chart axis use space-separated thousands via `format_grouped`.
 - Default steps: purchase/down ±1 000 000; deposit/rent ±10 000; percents ±0.1; years ±1.
 - Defaults: purchase 70 000 000, down 15 000 000, mortgage 25 years at 3%, amort/repairs 1%, deposit 500 000, rent 250 000, investment return 8%, inflation 3%/year, real rent/house indices 100.
-- Chart: wealth vs years; Plotly `separators=". "` and grouped HUF ticks. Series names follow the mode (Buying/Renting, Buy-to-let/Investment account, or House A/House B).
+- Chart: real wealth vs years (2027 HUF); Plotly `separators=". "` and grouped HUF ticks. Series names follow the mode (Buying/Renting, Buy-to-let/Investment account, or House A/House B).
 
 ## What not to do
 

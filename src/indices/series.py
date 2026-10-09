@@ -108,6 +108,18 @@ def index_at_year(index: list[float], year: int) -> float:
     return float(index[year])
 
 
+def real_huf(nominal: float, deflator: list[float], month: int) -> float:
+    """Convert a nominal HUF stock to base-year (year-0) purchasing power.
+
+    The yearly deflator is 100 in the first expected year; months in between
+    use the same linear interpolation as the house index.
+    """
+    base = index_at_year(deflator, 0)
+    if base == 0:
+        raise ValueError("price deflator base must be non-zero")
+    return nominal * base / index_at_month_linear(deflator, month)
+
+
 def index_at_month_linear(index: list[float], month: int) -> float:
     """Linear interpolation between yearly index points. Month 0 is year 0."""
     if not index:

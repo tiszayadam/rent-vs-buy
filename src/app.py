@@ -5,7 +5,8 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from indices.tab import current_nominal_paths, render_expected_indices_tab
+from indices.series import real_huf
+from indices.tab import current_nominal_paths, current_price_deflator, render_expected_indices_tab
 from model import WealthModel
 from parameters import (
     MIN_DOWN_PAYMENT_RATE,
@@ -81,7 +82,7 @@ before that month’s leftover (if any) is added.
 - **Buying:** investment account + house value − remaining mortgage principal.
 - **Renting:** deposit + investment account.
 
-The chart below plots these two wealth series over the mortgage.
+The chart and end-of-horizon figures are in **real 2027 HUF** (nominal wealth divided by the cumulative inflation deflator from Expected indices). Cashflows and the mortgage instalment stay nominal.
 """
 
 LET_VS_INVEST_DESCRIPTION = """
@@ -133,7 +134,7 @@ before that month’s leftover (if any) is added.
 - **Buy-to-let:** investment account + house value − remaining mortgage principal.
 - **Investment account:** investment account only.
 
-The chart below plots these two wealth series over the mortgage.
+The chart and end-of-horizon figures are in **real 2027 HUF** (nominal wealth divided by the cumulative inflation deflator from Expected indices). Cashflows and the mortgage instalment stay nominal.
 """
 
 
@@ -182,7 +183,7 @@ before that month’s leftover (if any) is added.
 
 - **Each house:** that house’s investment account + house value − remaining mortgage principal.
 
-The chart below plots these two wealth series.
+The chart and end-of-horizon figures are in **real 2027 HUF** (nominal wealth divided by the cumulative inflation deflator from Expected indices). Cashflows and the mortgage instalment stay nominal.
 """
 
 
@@ -478,7 +479,9 @@ def render_wealth_tab() -> None:
         st.stop()
 
     points = model.timeline()
-    end = points[-1]
+    deflator = current_price_deflator()
+    real_buying = [real_huf(p.buying_wealth, deflator, p.month) for p in points]
+    real_other = [real_huf(p.renting_wealth, deflator, p.month) for p in points]
     years = [p.month / 12 for p in points]
 
     if mode == MODE_HOUSE_VS_HOUSE:
@@ -495,7 +498,7 @@ def render_wealth_tab() -> None:
     fig.add_trace(
         go.Scatter(
             x=years,
-            y=[p.buying_wealth for p in points],
+            y=real_buying,
             name=house_label,
             mode="lines",
         )
@@ -503,14 +506,14 @@ def render_wealth_tab() -> None:
     fig.add_trace(
         go.Scatter(
             x=years,
-            y=[p.renting_wealth for p in points],
+            y=real_other,
             name=other_label,
             mode="lines",
         )
     )
     fig.update_layout(
         xaxis_title="Years",
-        yaxis_title="Wealth (HUF)",
+        yaxis_title="Real wealth (2027 HUF)",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         margin=dict(t=40, b=40),
         hovermode="x unified",
@@ -521,8 +524,14 @@ def render_wealth_tab() -> None:
     st.plotly_chart(fig, width="stretch")
 
     m1, m2, m3 = st.columns(3)
-    m1.metric(f"{house_label} wealth at end", f"{format_grouped(end.buying_wealth)} HUF")
-    m2.metric(f"{other_label} wealth at end", f"{format_grouped(end.renting_wealth)} HUF")
+    m1.metric(
+        f"{house_label} real wealth at end",
+        f"{format_grouped(real_buying[-1])} HUF",
+    )
+    m2.metric(
+        f"{other_label} real wealth at end",
+        f"{format_grouped(real_other[-1])} HUF",
+    )
     if mode == MODE_HOUSE_VS_HOUSE:
         assert model.mortgage_b is not None
         m3.metric(
